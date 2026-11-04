@@ -24,11 +24,14 @@
 | 노선 | 정수 1~9 | `3` |
 | 시간 | 초 단위 정수, 필드 이름이 `_sec`로 끝남 | `2510` |
 | 시각 | ISO 8601, 한국 시간 `+09:00` | `"2026-11-04T18:30:00+09:00"` |
-| 요금 | 원 단위 정수 `fare_won` | `4190` |
+| 비용 | 원 단위 정수 `cost_won` | `4190` |
 
 - 역 번호는 이름표일 뿐이다. **앞자리로 노선을 추정하지 않는다** (ASSUMPTIONS.md). 노선은 항상 응답의 `line`과 `lines` 값을 쓴다.
 - 환승역도 API에서는 ID가 하나다 (예: `"123"`). 노선별로 나눈 노드(`123@1`, `123@3`)는 서버 안에서만 쓰고 앱에는 나오지 않는다.
-- 요금은 지나간 구간 비용을 단순히 더한 **가상 값**이다. 실제 요금 규칙은 적용하지 않는다 (ASSUMPTIONS.md).
+- 비용은 지나간 구간 비용을 단순히 더한 값이다. **실제 지하철 요금이 아니며** 실제 요금 규칙은 적용하지 않는다 (ASSUMPTIONS.md).
+- 거리(미터)는 원본에 있지만 API 응답에는 넣지 않는다 (팀 결정 2026-11-05).
+- 모든 구간은 양방향이고 두 방향의 시간·비용이 같다 (ASSUMPTIONS.md). 예: 207→101 최단 시간 경로는 2장 첫 예시를 거꾸로 탄 경로다. `total_sec` 2510과 `cost_won` 4190은 같고, `direction`만 반대쪽이다 (3호선 구간은 `107` 종로3가 방면).
+- 역 이름은 실제 서울 역명을 빌려 왔지만 위치와 순서는 실제와 관계없는 가상 배치다 (ASSUMPTIONS.md).
 
 **`lang` 값**
 
@@ -101,7 +104,7 @@ GET /stations?lang=en
   "arrival_time": "2026-11-04T19:11:50+09:00",
   "total_sec": 2510,
   "transfer_count": 1,
-  "fare_won": 4190,
+  "cost_won": 4190,
   "segments": [
     {
       "line": 1,
@@ -146,7 +149,7 @@ GET /stations?lang=en
 | `transfers` | 환승 목록. `sec`은 `transfers.csv` 값 (지금은 모두 300) |
 | `transfer_count` | 환승 횟수 (`transfers` 개수와 같음) |
 | `total_sec` | 탑승 시간 합 + 환승 시간 합. 예: 480 + 300 + 1730 = 2510 |
-| `fare_won` | 지나간 구간 비용의 합 (가상 요금). 환승에는 비용이 없다 |
+| `cost_won` | 지나간 구간 비용의 합 (실제 요금 아님). 환승에는 비용을 더하지 않는다 **(가안, 논의 필요 10)** |
 | `arrival_time` | `departure_time` + `total_sec`. 시간표가 없어 기다리는 시간은 넣지 않음 **(가안, 논의 필요 5)** |
 
 **응답 200 — 최소 환승 (`criteria: "transfers"`)**: 같은 출발·도착역. 2호선 하나로 가며 환승이 없다.
@@ -160,7 +163,7 @@ GET /stations?lang=en
   "arrival_time": "2026-11-04T19:23:20+09:00",
   "total_sec": 3200,
   "transfer_count": 0,
-  "fare_won": 2560,
+  "cost_won": 2560,
   "segments": [
     {
       "line": 2,
@@ -184,7 +187,7 @@ GET /stations?lang=en
 }
 ```
 
-💡 mock용 값 하나 더: `107`(종로3가) → `207`(교대)는 두 기준 모두 3호선 하나로 간다. `total_sec` 4060, `transfer_count` 0, `fare_won` 5700, 역 11개.
+💡 mock용 값 하나 더: `107`(종로3가) → `207`(교대)는 두 기준 모두 3호선 하나로 간다. `total_sec` 4060, `transfer_count` 0, `cost_won` 5700, 역 11개.
 
 ---
 
@@ -314,7 +317,7 @@ GET /stations?lang=en
 
 | 누가 | 하는 일 |
 |---|---|
-| routing (`find_route`, `find_meeting_station`) | 역 ID와 숫자만 다룬다: 경로, 구간별 시간, 환승, 요금, 방향 역 |
+| routing (`find_route`, `find_meeting_station`) | 역 ID와 숫자만 다룬다: 경로, 구간별 시간, 환승, 비용, 방향 역 |
 | API 층 (`backend/app`) | 입력 검사(없는 역, 출발=도착, 인원 수, `lang`), 역 이름 붙이기, `arrival_time` 계산, 오류 응답 만들기 |
 
 routing 함수는 **검사를 통과한 입력만 받는다**고 가정한다. 그래서 routing에서는 입력 오류를 따로 처리하지 않아도 된다.
@@ -349,7 +352,7 @@ class RouteResult:
     segments: list[Segment]
     transfers: list[Transfer]    # 개수 = 환승 횟수
     total_sec: int               # ride_sec 합 + 환승 sec 합
-    fare_won: int                # 지나간 구간 비용의 합
+    cost_won: int                # 지나간 구간 비용의 합
 
 
 def find_route(start: StationId, end: StationId, criteria: RouteCriteria) -> RouteResult:
@@ -383,7 +386,7 @@ def find_meeting_station(starts: list[StationId], criteria: MeetingCriteria) -> 
 | `arrival_time` | API 층에서 `departure_time + total_sec`로 계산 |
 | 모든 `name` | API 층에서 `station_names.csv`의 `lang` 이름으로 붙임 |
 
-예시 확인용: `find_route("101", "207", "time")`은 2장 첫 번째 예시와 같은 값(1호선 480초 → 압구정 환승 300초 → 3호선 1730초, 합계 2510초, 요금 4190)을 돌려줘야 한다.
+예시 확인용: `find_route("101", "207", "time")`은 2장 첫 번째 예시와 같은 값(1호선 480초 → 압구정 환승 300초 → 3호선 1730초, 합계 2510초, 비용 4190)을 돌려줘야 한다.
 
 ---
 
@@ -400,4 +403,7 @@ ASSUMPTIONS.md에 아직 없는 내용이라 이 문서에서 정하지 않았�
 7. **`/explain` 역 이름 표기**: 설명 언어가 ko·en이 아닐 때(예: `vi`) 역 이름을 영어 이름 그대로 쓸지, AI가 그 언어로 옮겨 적게 할지. AI가 옮겨 적으면 데이터에 없는 표기를 AI가 만드는 셈이다.
 8. **`/explain` 입력 신뢰**: 앱이 보낸 `result`를 서버가 그대로 믿을지, 다시 계산해서 확인할지. 조작된 값으로 Gemini가 호출되는 것(비용 낭비)을 막는 문제와 설명 캐시 키를 정하는 문제가 여기에 걸려 있다.
 9. **지원하지 않는 `lang`**: 역 이름 API에 `ja`처럼 없는 언어가 오면 오류로 할지(가안: `UNSUPPORTED_LANGUAGE`), 영어 이름으로 대신 보여 줄지.
-10. **6장 함수 인터페이스**: routing 담당(표혜정) 확인.
+10. **환승 비용**: 환승할 때는 비용을 더하지 않았다. transfers.csv에 비용 열이 없고, ASSUMPTIONS.md에는 "구간 비용의 합"이라고만 적혀 있어서 이렇게 해석했다. 이대로 확정할지.
+11. **모임역 비용 표시**: 모임역 응답의 사람별 결과에 비용(`cost_won`)도 넣을지. ASSUMPTIONS.md에는 경로 비용만 적혀 있다.
+12. **순환선 여부 전달**: 지금 앱은 API로 어떤 노선이 순환선인지 알 수 없고, `direction: null`만 보인다. `GET /stations`에 노선 정보(순환선 여부)를 함께 줄지.
+13. **6장 함수 인터페이스**: routing 담당(표혜정) 확인.
