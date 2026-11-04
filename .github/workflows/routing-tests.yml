@@ -1,0 +1,39 @@
+name: SubFit Routing Tests
+
+on:
+  push:
+    branches:
+      - feature/subway-routing
+      - main
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  routing-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: 저장소 코드 가져오기
+        uses: actions/checkout@v6
+
+      - name: Python 준비
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: 데이터 검증에 필요한 패키지 설치
+        run: python -m pip install -r scripts/requirements.txt
+
+      - name: 프로젝트 공식 데이터 검증
+        run: python scripts/validate_data.py
+
+      - name: 작은 구간과 예외 처리 테스트
+        run: python -m unittest discover -s backend/tests -p test_dijkstra.py -v
+
+      - name: 전체 경로 정답 및 반환 경로 검증
+        run: python -m backend.tests.verify_full_network
