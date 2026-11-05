@@ -25,6 +25,37 @@ pip install -r scripts/requirements.txt
 python scripts/validate_data.py
 ```
 
+## 서버 실행과 테스트
+
+가상환경은 저장소 최상위 `.venv` 하나를 같이 쓴다. `.venv`가 없으면 위 "데이터 검증"의 첫 줄로 먼저 만든다.
+
+**처음 한 번** (저장소 최상위 폴더에서)
+
+```bash
+source .venv/bin/activate
+pip install -r backend/requirements.txt
+cp .env.example .env    # .env가 아직 없을 때만. 값이 비어 있어도 서버는 켜진다
+```
+
+**서버 실행** (`backend/` 폴더에서)
+
+```bash
+source .venv/bin/activate    # 저장소 최상위에서
+cd backend
+uvicorn app.main:app --reload
+```
+
+- 브라우저에서 http://localhost:8000/docs 를 열면 API 목록과 테스트 화면이 나온다.
+- `--reload`: 코드를 저장하면 서버가 자동으로 다시 켜진다. 끌 때는 `Ctrl + C`.
+
+**테스트** (`backend/` 폴더에서)
+
+```bash
+source .venv/bin/activate    # 저장소 최상위에서
+cd backend
+pytest
+```
+
 ## 협업 규칙
 
 - `main` 브랜치에 직접 push하지 않는다. 작업은 브랜치 → PR → 상대방 승인 → 병합.

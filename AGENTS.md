@@ -86,8 +86,15 @@
 source .venv/bin/activate
 python scripts/validate_data.py
 
+# 서버 패키지 설치 (저장소 최상위에서, 처음 한 번)
+pip install -r backend/requirements.txt
+
+# 서버 실행 (backend/에서) → http://localhost:8000/docs
+cd backend && uvicorn app.main:app --reload
+
+# 서버 테스트 (backend/에서)
+cd backend && pytest
+
 # 앱 실행
 cd app && flutter run
-
-# 서버 실행 — 서버 코드 작성 후 추가 예정
 ```
