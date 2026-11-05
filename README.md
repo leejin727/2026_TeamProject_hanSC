@@ -56,6 +56,28 @@ cd backend
 pytest
 ```
 
+## DB 만들기와 데이터 넣기
+
+PostgreSQL이 켜져 있어야 한다. 표 구조와 설명은 `docs/db-schema.md`.
+
+**처음 한 번** (저장소 최상위 폴더에서)
+
+```bash
+createdb subfit    # DB가 아직 없을 때만
+```
+
+`.env`의 `DATABASE_URL`이 이 DB를 가리키는지 확인한다 (예: `postgresql://localhost:5432/subfit`).
+
+**표 만들기 + 데이터 넣기** (저장소 최상위 폴더에서, 데이터가 바뀔 때마다)
+
+```bash
+source .venv/bin/activate
+python scripts/load_db.py
+```
+
+- 위 "데이터 검증"과 "서버 실행과 테스트"의 패키지(`scripts/requirements.txt`, `backend/requirements.txt`)가 둘 다 설치되어 있어야 한다.
+- 몇 번을 실행해도 결과가 같다. 끝에 `✅ 적재 완료, 검증 통과`가 나오면 성공이다.
+
 ## 협업 규칙
 
 - `main` 브랜치에 직접 push하지 않는다. 작업은 브랜치 → PR → 상대방 승인 → 병합.

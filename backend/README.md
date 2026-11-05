@@ -8,6 +8,6 @@
 | `app/config.py` | 저장소 최상위 `.env`에서 설정 읽기 | 이진 |
 | `app/errors.py` | 공통 오류 응답 (`docs/api-spec.md` 5장) | 이진 |
 | `app/api/` | API 엔드포인트 (작성 예정) | 이진 |
-| `app/db/` | PostgreSQL 연결 (작성 예정) | 이진 |
+| `app/db/` | PostgreSQL 접속 `connection.py`, 테이블 정의 `schema.sql` (설명: `docs/db-schema.md`) | 이진 |
 | `app/routing/` | Dijkstra 경로·모임역 계산 | 표혜정 |
 | `tests/` | pytest 테스트 | 이진 |
