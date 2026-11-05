@@ -1,1 +1,13 @@
-# FastAPI 서버 — 7단계에서 작성 예정
+# SubFit 서버 (FastAPI)
+
+설치·실행·테스트 방법은 최상위 [README.md](../README.md)의 "서버 실행과 테스트"를 본다.
+
+| 위치 | 내용 | 담당 |
+|---|---|---|
+| `app/main.py` | 서버 시작점, `GET /health` | 이진 |
+| `app/config.py` | 저장소 최상위 `.env`에서 설정 읽기 | 이진 |
+| `app/errors.py` | 공통 오류 응답 (`docs/api-spec.md` 5장) | 이진 |
+| `app/api/` | API 엔드포인트 (작성 예정) | 이진 |
+| `app/db/` | PostgreSQL 연결 (작성 예정) | 이진 |
+| `app/routing/` | Dijkstra 경로·모임역 계산 | 표혜정 |
+| `tests/` | pytest 테스트 | 이진 |

@@ -301,11 +301,13 @@ GET /stations?lang=en
 | 400 | `SAME_STATION` | 출발역 = 도착역 | `/routes` | `{"station_id": "101"}` |
 | 400 | `INVALID_PARTICIPANT_COUNT` | 출발역이 2개 미만이거나 4개 초과 | `/meeting-station` | `{"count": 5, "min": 2, "max": 4}` |
 | 400 | `UNSUPPORTED_LANGUAGE` | 지원하지 않는 `lang` **(가안, 논의 필요 9)** | 전체 | `{"lang": "ja", "supported": ["ko", "en"]}` |
+| 404 | `NOT_FOUND` | 없는 주소로 요청 (예: `GET /route`) | 전체 | 없음 |
+| 405 | `METHOD_NOT_ALLOWED` | 주소는 있지만 허용하지 않는 방식 (예: `GET /routes`) | 전체 | 없음 |
 | 422 | `INVALID_REQUEST` | 필수 값 누락, 타입 오류, `criteria`·`type`의 잘못된 값, JSON 형식 오류 | 전체 | `{"field": "criteria"}` |
 | 503 | `AI_UNAVAILABLE` | Gemini 호출 실패·시간 초과 | `/explain` | 없음 |
 | 500 | `INTERNAL_ERROR` | 그 밖의 서버 오류 | 전체 | 없음 |
 
-구현 메모 (서버 담당): FastAPI는 입력 검증 오류를 기본적으로 `{"detail": [...]}` 모양으로 돌려준다. 위 형식에 맞추려면 오류 처리기(exception handler)를 따로 등록해야 한다.
+구현 메모 (서버 담당): FastAPI는 입력 검증 오류를 `{"detail": [...]}`, 없는 주소를 `{"detail": "Not Found"}` 모양으로 돌려준다. `backend/app/errors.py`의 오류 처리기가 이것들과 예상 못 한 오류를 모두 위 형식으로 바꾼다. 코드에서 직접 오류를 낼 때는 `AppError(400, "STATION_NOT_FOUND", "...", {"station_id": "999"})`를 쓴다.
 
 ---
 

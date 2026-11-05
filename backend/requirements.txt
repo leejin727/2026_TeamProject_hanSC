@@ -1,0 +1,11 @@
+# 설치 (저장소 최상위에서): pip install -r backend/requirements.txt
+# 두 사람이 같은 버전을 쓰도록 ==로 고정한다.
+
+# 서버
+fastapi==0.162.0
+uvicorn==0.54.0
+python-dotenv==1.2.4
+
+# 테스트 (httpx2는 FastAPI 테스트 도구 TestClient가 필요로 함)
+pytest==9.2.0
+httpx2==2.16.0
