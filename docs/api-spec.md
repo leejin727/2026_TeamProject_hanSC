@@ -143,7 +143,7 @@ GET /stations?lang=en
 |---|---|
 | `segments` | 한 노선을 연속으로 타는 구간 목록. 탄 순서대로 |
 | `segments[].board` / `alight` | 그 구간의 탑승역 / 하차역 |
-| `segments[].direction` | "○○ 방면"의 ○○에 들어갈 역. 문구는 앱이 언어에 맞게 만든다 (`ko`: "교대 방면", `en`: "toward …"). 예시는 **진행 방향 종점 (가안)**. 순환선(1·6호선)은 아직 `null` **(논의 필요 1)** |
+| `segments[].direction` | "○○ 방면"의 ○○에 들어갈 역. 문구는 앱이 언어에 맞게 만든다 (`ko`: "교대 방면", `en`: "toward …"). 예시는 **진행 방향 종점 (가안)**. 순환선(1·6호선)은 아직 `null` **(논의 필요 1)**. 표기 방식이 정해질 때까지 **서버는 모든 노선에서 `null`을 준다** |
 | `segments[].stations` | 그 구간에서 지나는 역 전체. 탑승역과 하차역도 포함 |
 | `segments[].ride_sec` | 그 구간의 탑승 시간 (구간 시간의 합) |
 | `transfers` | 환승 목록. `sec`은 `transfers.csv` 값 (지금은 모두 300) |
@@ -311,31 +311,44 @@ GET /stations?lang=en
 
 ## 6. 알고리즘 함수 인터페이스 (`backend/app/routing`)
 
-> `backend/app/routing`은 **표혜정 담당 폴더**다. 이 장은 API 쪽에서 필요한 모양을 적은 **제안**이며, 담당자가 확인한 뒤 확정한다.
+> `backend/app/routing`은 **표혜정 담당 폴더**다. 이 장의 모양은 표혜정·이진이 합의했다 (2026-11-05). 바꿀 때는 두 사람이 같이 정한다.
+>
+> 구현 위치: 결과 모양 `routing/models.py`, 노선도 읽기 `routing/graph_builder.py`(`load_network`), 경로 계산 `routing/dijkstra.py`(`find_route`)
 
 **역할 나누기**
 
 | 누가 | 하는 일 |
 |---|---|
-| routing (`find_route`, `find_meeting_station`) | 역 ID와 숫자만 다룬다: 경로, 구간별 시간, 환승, 비용, 방향 역 |
+| routing (`find_route`, `find_meeting_station`) | 역 ID와 숫자만 다룬다: 경로, 구간별 시간, 환승, 비용, 방향 역 (방향은 표기 방식이 정해진 뒤) |
 | API 층 (`backend/app`) | 입력 검사(없는 역, 출발=도착, 인원 수, `lang`), 역 이름 붙이기, `arrival_time` 계산, 오류 응답 만들기 |
 
-routing 함수는 **검사를 통과한 입력만 받는다**고 가정한다. 그래서 routing에서는 입력 오류를 따로 처리하지 않아도 된다.
+routing 함수는 **검사를 통과한 입력만 받는다**고 가정한다. 입력 오류는 API 층이 먼저 막고, routing이 내는 오류는 안전장치다.
+
+| 상황 | routing 동작 |
+|---|---|
+| 없는 역 ID, 문자열이 아닌 역 ID (예: 숫자 `101`) | `UnknownStationError` |
+| `criteria`가 `"time"`·`"transfers"`가 아님 | `ValueError` |
+| 출발역 = 도착역 | 오류 없이 빈 결과 (`segments=[]`, `total_sec=0`, `cost_won=0`). API 층은 그 전에 `SAME_STATION`으로 막는다 |
+| 경로 없음 | `NoRouteError`. 지금 데이터는 모든 역이 이어져 있어 나지 않는다 |
 
 ```python
 from dataclasses import dataclass
 from typing import Literal
 
-StationId = str  # 예: "101". 노선별 노드("123@1")는 routing 안에서만 쓴다.
+StationId = str  # 예: "101". 역 번호는 이름표라 문자열로 다룬다
 RouteCriteria = Literal["time", "transfers"]
 MeetingCriteria = Literal["time", "transfers", "fairness"]
+
+# 노선도는 서버를 켤 때 한 번 읽어 두고 모든 요청에서 같이 쓴다.
+# 그래프 노드는 (역, 노선) 튜플(예: ("123", 1))이며 routing 안에서만 쓴다.
+network = load_network(DATA_DIR)  # DATA_DIR = 저장소 최상위 data/ 폴더 (raw/stations.xlsx + extra/*.csv)
 
 
 @dataclass
 class Segment:
     line: int                    # 노선 번호
     stations: list[StationId]    # 탑승역 ~ 하차역 (양 끝 포함, 탄 순서대로)
-    direction: StationId | None  # "○○ 방면"의 ○○ 역. 순환선은 None (논의 필요 1)
+    direction: StationId | None  # "○○ 방면"의 ○○ 역. 표기 방식(논의 필요 1)이 정해질 때까지 항상 None
     ride_sec: int                # 이 구간 탑승 시간의 합
 
 
@@ -352,10 +365,10 @@ class RouteResult:
     segments: list[Segment]
     transfers: list[Transfer]    # 개수 = 환승 횟수
     total_sec: int               # ride_sec 합 + 환승 sec 합
-    cost_won: int                # 지나간 구간 비용의 합
+    cost_won: int                # 지나간 구간 비용의 합. 환승은 0원 (논의 필요 10)
 
 
-def find_route(start: StationId, end: StationId, criteria: RouteCriteria) -> RouteResult:
+def find_route(network: Network, start: StationId, end: StationId, criteria: RouteCriteria) -> RouteResult:
     ...
 
 
@@ -372,7 +385,7 @@ class MeetingResult:
     participants: list[ParticipantResult]  # 입력 starts 순서 그대로
 
 
-def find_meeting_station(starts: list[StationId], criteria: MeetingCriteria) -> MeetingResult:
+def find_meeting_station(network: Network, starts: list[StationId], criteria: MeetingCriteria) -> MeetingResult:
     ...
 ```
 
@@ -386,7 +399,7 @@ def find_meeting_station(starts: list[StationId], criteria: MeetingCriteria) -> 
 | `arrival_time` | API 층에서 `departure_time + total_sec`로 계산 |
 | 모든 `name` | API 층에서 `station_names.csv`의 `lang` 이름으로 붙임 |
 
-예시 확인용: `find_route("101", "207", "time")`은 2장 첫 번째 예시와 같은 값(1호선 480초 → 압구정 환승 300초 → 3호선 1730초, 합계 2510초, 비용 4190)을 돌려줘야 한다.
+예시 확인용: `find_route(network, "101", "207", "time")`은 2장 첫 번째 예시와 같은 값(1호선 480초 → 압구정 환승 300초 → 3호선 1730초, 합계 2510초, 비용 4190)을 돌려줘야 한다. 이 값과 2장의 다른 예시들은 `backend/tests/test_dijkstra.py`의 `SpecExampleTests`가 확인한다.
 
 ---
 
@@ -406,4 +419,3 @@ ASSUMPTIONS.md에 아직 없는 내용이라 이 문서에서 정하지 않았�
 10. **환승 비용**: 환승할 때는 비용을 더하지 않았다. transfers.csv에 비용 열이 없고, ASSUMPTIONS.md에는 "구간 비용의 합"이라고만 적혀 있어서 이렇게 해석했다. 이대로 확정할지.
 11. **모임역 비용 표시**: 모임역 응답의 사람별 결과에 비용(`cost_won`)도 넣을지. ASSUMPTIONS.md에는 경로 비용만 적혀 있다.
 12. **순환선 여부 전달**: 지금 앱은 API로 어떤 노선이 순환선인지 알 수 없고, `direction: null`만 보인다. `GET /stations`에 노선 정보(순환선 여부)를 함께 줄지.
-13. **6장 함수 인터페이스**: routing 담당(표혜정) 확인.
