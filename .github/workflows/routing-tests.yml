@@ -32,8 +32,11 @@ jobs:
       - name: 프로젝트 공식 데이터 검증
         run: python scripts/validate_data.py
 
+      # 서버와 같은 방식으로 backend 폴더에서 실행한다 (코드에서 `from app.…`으로 불러옴)
       - name: 작은 구간과 예외 처리 테스트
-        run: python -m unittest discover -s backend/tests -p test_dijkstra.py -v
+        working-directory: backend
+        run: python -m unittest discover -s tests -p test_dijkstra.py -v
 
       - name: 전체 경로 정답 및 반환 경로 검증
-        run: python -m backend.tests.verify_full_network
+        working-directory: backend
+        run: python -m tests.verify_full_network
