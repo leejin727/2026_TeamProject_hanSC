@@ -51,7 +51,7 @@
 
 - 모임역 추천 기준별 계산식 (최단시간 / 최소환승 / 공평성)
 - 방향 안내 표기 방식 (특히 순환선)
-- 부가 기능 범위 (첫차·막차, 실시간 도착, 편의시설, 즐겨찾기 저장 위치)
+- 부가 기능 범위 (첫차·막차, 실시간 도착, 편의시설)
 
 확정되면 ASSUMPTIONS.md에 기록되고 이 목록에서 지운다.
 
@@ -94,6 +94,10 @@ cd backend && uvicorn app.main:app --reload
 
 # 서버 테스트 (backend/에서)
 cd backend && pytest
+
+# DB 표 만들기 + 데이터 넣기 (저장소 최상위에서, PostgreSQL 켜져 있어야 함, 여러 번 실행해도 됨)
+# 표 구조: docs/db-schema.md
+python scripts/load_db.py
 
 # 앱 실행
 cd app && flutter run
