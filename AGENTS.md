@@ -10,7 +10,7 @@
 ## 문서 위치와 우선순위
 
 1. `data/extra/ASSUMPTIONS.md` — 데이터 가정과 팀 결정 사항 (**가장 우선**)
-2. `docs/api-spec.md` — API 명세 (작성 예정)
+2. `docs/api-spec.md` — API 명세 (초안)
 3. `docs/concept-design.md`, `docs/proposal.md` — 제출한 설계서 사본 (배경·요구사항 참고용)
 
 설계서에는 "서울 열린데이터광장 실제 지하철 데이터"로 되어 있지만 **현재는 교수님 제공 가상 노선 데이터를 쓴다.** 둘이 다르면 ASSUMPTIONS.md를 따른다.
