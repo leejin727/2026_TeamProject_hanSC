@@ -1,6 +1,6 @@
 # SubFit 서버 API 명세 (초안)
 
-> 작성 2026-11-04 · 아직 서버 코드는 없음. 이 문서를 보고 앱에서 가짜 데이터(mock)를 만들 수 있게 하는 것이 목표.
+> 작성 2026-11-04 · 구현됨: `GET /stations`, `POST /routes` (2026-11-11). `/meeting-station`, `/explain`은 아직 없음. 이 문서를 보고 앱에서 가짜 데이터(mock)를 만들 수 있게 하는 것이 목표.
 > 데이터 규칙은 `data/extra/ASSUMPTIONS.md`가 우선이다. **(가안)** 표시는 팀 결정 전 임시 값이며, 끝의 [논의 필요](#7-논의-필요)에서 확정한다.
 > 예시 값은 모두 실제 데이터(`stations.xlsx` + `data/extra/*.csv`)로 계산한 값이다.
 
@@ -302,6 +302,7 @@ GET /stations?lang=en
 | 400 | `INVALID_PARTICIPANT_COUNT` | 출발역이 2개 미만이거나 4개 초과 | `/meeting-station` | `{"count": 5, "min": 2, "max": 4}` |
 | 400 | `UNSUPPORTED_LANGUAGE` | 지원하지 않는 `lang` **(가안, 논의 필요 9)** | 전체 | `{"lang": "ja", "supported": ["ko", "en"]}` |
 | 404 | `NOT_FOUND` | 없는 주소로 요청 (예: `GET /route`) | 전체 | 없음 |
+| 404 | `NO_ROUTE` | 두 역을 잇는 경로가 없음. 지금 데이터는 모든 역이 이어져 있어 나지 않는다 | `/routes` | `{"start_station_id": "101", "end_station_id": "207"}` |
 | 405 | `METHOD_NOT_ALLOWED` | 주소는 있지만 허용하지 않는 방식 (예: `GET /routes`) | 전체 | 없음 |
 | 422 | `INVALID_REQUEST` | 필수 값 누락, 타입 오류, `criteria`·`type`의 잘못된 값, JSON 형식 오류 | 전체 | `{"field": "criteria"}` |
 | 503 | `AI_UNAVAILABLE` | Gemini 호출 실패·시간 초과 | `/explain` | 없음 |

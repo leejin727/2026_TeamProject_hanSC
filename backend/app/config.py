@@ -10,8 +10,10 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 # 이 파일 위치: backend/app/config.py → 세 단계 위가 저장소 최상위.
-# 서버를 어느 폴더에서 켜든 항상 같은 .env를 읽는다.
-ENV_FILE = Path(__file__).resolve().parents[2] / ".env"
+# 서버를 어느 폴더에서 켜든 항상 같은 .env와 data/ 폴더를 읽는다.
+ROOT = Path(__file__).resolve().parents[2]
+ENV_FILE = ROOT / ".env"
+DATA_DIR = ROOT / "data"  # 노선 데이터: raw/stations.xlsx + extra/*.csv
 
 # .env가 없어도 오류 없이 넘어간다. 이미 설정된 환경변수가 있으면 그 값이 우선이다.
 load_dotenv(ENV_FILE)
