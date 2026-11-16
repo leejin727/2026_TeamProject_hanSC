@@ -39,3 +39,16 @@ jobs:
       - name: 전체 경로 정답 및 반환 경로 검증
         working-directory: backend
         run: python -m tests.verify_full_network
+
+        
+      - name: 길찾기 및 모임역 상세 보고서 생성
+        working-directory: backend
+        run: python -m tests.generate_report --output ../reports
+
+      - name: 보고서 다운로드 파일 첨부
+        uses: actions/upload-artifact@v7
+        with:
+          name: subfit-algorithm-report
+          path: reports/
+          if-no-files-found: error
+          retention-days: 14
