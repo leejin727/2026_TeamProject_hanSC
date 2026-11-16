@@ -1,6 +1,6 @@
 # SubFit 서버 API 명세 (초안)
 
-> 작성 2026-11-04 · 구현됨: `GET /stations`, `POST /routes` (2026-11-11). `/meeting-station`, `/explain`은 아직 없음. 이 문서를 보고 앱에서 가짜 데이터(mock)를 만들 수 있게 하는 것이 목표.
+> 작성 2026-11-04 · 구현됨: `GET /stations`, `POST /routes` (2026-11-11), `POST /explain`의 `type: "route"` (2026-11-16). `POST /meeting-station`은 입력 검사까지만 있고, 모임역 알고리즘이 생길 때까지 `501 NOT_IMPLEMENTED`로 답한다. 이 문서를 보고 앱에서 가짜 데이터(mock)를 만들 수 있게 하는 것이 목표.
 > 데이터 규칙은 `data/extra/ASSUMPTIONS.md`가 우선이다. **(가안)** 표시는 팀 결정 전 임시 값이며, 끝의 [논의 필요](#7-논의-필요)에서 확정한다.
 > 예시 값은 모두 실제 데이터(`stations.xlsx` + `data/extra/*.csv`)로 계산한 값이다.
 
@@ -38,7 +38,7 @@
 | 쓰는 곳 | 허용 값 | 비고 |
 |---|---|---|
 | 역 이름 (`/stations`, `/routes`, `/meeting-station`) | `ko`, `en` | 필수. 데이터에 이 두 언어만 있다. |
-| AI 설명 (`/explain`) | ISO 639-1 두 글자 코드 (`en`, `ja`, `vi` …) | 지원 목록은 논의 필요 6 |
+| AI 설명 (`/explain`의 `lang`) | `ko`, `en`, `ja`, `zh-Hans`(중국어 간체), `zh-Hant`(중국어 번체), `vi` | 필수. 설명 문장의 언어 |
 
 ---
 
@@ -206,7 +206,7 @@ GET /stations?lang=en
 | 필드 | 필수 | 설명 |
 |---|---|---|
 | `start_station_ids` | O | 사람별 출발역 ID. **2~4개**. 범위 밖이면 오류 `INVALID_PARTICIPANT_COUNT` |
-| `criteria` | O | `"time"` 최단시간 / `"transfers"` 최소환승 / `"fairness"` 공평성. 기준별 계산식은 **논의 필요 2** |
+| `criteria` | O | `"time"` 최단시간 / `"transfers"` 최소환승 / `"fairness"` 공평성. 기준별 계산식은 `data/extra/ASSUMPTIONS.md`의 "모임역 추천 기준" |
 | `lang` | O | `ko` 또는 `en` |
 
 **응답 200**
@@ -232,21 +232,29 @@ GET /stations?lang=en
 | `participants[].transfer_count` | 그 사람의 환승 횟수 |
 | `nearby_facilities` | 주변 인프라. 지금은 데이터가 없어서 **항상 빈 목록 `[]`**. 항목 형식은 논의 필요 4 |
 
-예시의 사람별 시간은 각자 모란(705)까지 가는 최단 시간 경로로 계산한 실제 값이다. 모란을 고른 것은 "세 사람 이동 시간의 합이 가장 작은 역"으로 해 본 **예시일 뿐**이다. 실제 추천 역은 기준별 계산식이 정해져야 확정된다.
+예시는 `time` 기준(사람별 이동 시간의 합이 가장 작은 역)의 실제 정답이다. 사람별 시간은 각자 모란(705)까지 가는 최단 시간 경로로 계산한 값이다. 같은 출발역으로 다른 기준을 쓰면 `fairness` → 701 먹골, `transfers` → 705 모란이 나와야 한다.
+
+- 같은 출발역을 여러 번 넣어도 된다. 출발역 중 하나가 모임역이 될 수도 있다 (그 사람은 `travel_sec` 0).
+- 모임역 알고리즘(`find_meeting_station`, 6장)이 생기기 전까지는 입력 검사를 통과한 요청에 `501 NOT_IMPLEMENTED`를 준다. 입력 오류(인원 수, 없는 역, `lang`, `criteria`)는 지금도 5장대로 온다.
 
 ---
 
 ## 4. POST /explain — AI 설명
 
-`/routes` 또는 `/meeting-station`의 응답을 그대로 받아서, 요청한 언어로 설명 문장을 돌려준다.
+`/routes` 또는 `/meeting-station`에 보냈던 **요청 본문**을 받아서, 요청한 언어로 설명 문장을 돌려준다. 앱이 받은 결과는 보내지 않는다. 서버가 같은 요청으로 다시 계산해서 그 값으로 설명한다 (조작된 값으로 Gemini를 부르는 것을 막는다).
 
 **요청**
 
 ```jsonc
 {
-  "type": "route",          // "route" = /routes 결과, "meeting" = /meeting-station 결과
-  "lang": "en",             // 설명 언어
-  "result": { /* POST /routes 응답 본문을 그대로 넣는다 (2장 예시) */ }
+  "type": "route",          // "route" = /routes 요청, "meeting" = /meeting-station 요청
+  "request": {              // POST /routes에 보낸 요청 본문 그대로 (2장)
+    "start_station_id": "101",
+    "end_station_id": "207",
+    "criteria": "time",
+    "lang": "en"            // 역 이름 언어 (ko·en)
+  },
+  "lang": "en"              // 설명 문장 언어 (0장 표: ko, en, ja, zh-Hans, zh-Hant, vi)
 }
 ```
 
@@ -254,24 +262,33 @@ GET /stations?lang=en
 
 ```json
 {
-  "type": "route",
-  "lang": "en",
-  "text": "From Sindorim, take Line 1 and get off at Apgujeong (about 8 min). At Apgujeong, transfer to Line 3 (about 5 min) and take the train toward Seoul Nat'l Univ. of Education. Ride 5 stops and get off at Seoul Nat'l Univ. of Education (about 29 min). The whole trip takes about 42 min with 1 transfer.",
+  "explanation": "Board Line 1 at Sindorim and ride for 8 minutes to Apgujeong. Transfer to Line 3 at Apgujeong, which takes 5 minutes, and ride for 29 minutes to reach Seoul Nat'l Univ. of Education. The total journey takes 42 minutes with 1 transfer.",
   "cached": false
 }
 ```
 
 | 필드 | 설명 |
 |---|---|
-| `text` | 설명 문장. Gemini가 만들기 때문에 같은 입력이어도 표현이 조금씩 다를 수 있다 |
+| `explanation` | 설명 문장 (3문장 이내). Gemini가 만들기 때문에 같은 입력이어도 표현이 조금씩 다를 수 있다 |
 | `cached` | 저장해 둔 설명을 다시 쓴 경우 `true`. 앱 화면에는 쓰지 않아도 된다 |
 
-`type: "meeting"`이면 `result`에 `/meeting-station` 응답을 넣는다. 응답 형식은 같고, `text`에는 추천 이유가 들어간다.
+- 역 이름은 `request.lang`(ko·en)의 이름 그대로 쓴다. 설명 언어가 `ja`, `vi` 등이어도 AI가 역 이름을 옮겨 적지 않는다.
+- `type: "meeting"`이면 `request`에 `/meeting-station` 요청 본문을 넣는다. 모임역 알고리즘이 생길 때까지는 `501 NOT_IMPLEMENTED`.
 
 서버 동작 (AGENTS.md 설계 원칙):
-- Gemini에는 `result`에 있는 정보만 넘긴다. 프롬프트에 "주어진 데이터 외의 정보(실제 서울 지하철 노선, 주변 시설 등)는 말하지 말 것"을 넣는다.
-- 같은 결과 + 같은 언어의 설명은 저장해 두고 다시 쓴다 (`cached: true`).
-- Gemini 호출이 실패하거나 시간이 초과되면 `503 AI_UNAVAILABLE`을 준다. 이때 앱은 경로 화면을 그대로 두고 설명 칸에만 오류를 보여 주면 된다.
+- Gemini에는 서버가 다시 계산한 값(역 이름, 노선, 구간별·전체 시간, 환승 횟수)만 넘긴다. 출발·도착 시각과 비용은 넘기지 않는다. 프롬프트에 "주어진 데이터 외의 정보(실제 서울 지하철 노선, 주변 시설 등)는 말하지 말 것"을 넣는다.
+- 같은 요청 + 같은 설명 언어의 설명은 `ai_explanations` 표에 저장해 두고 다시 쓴다 (`cached: true`). 저장 키는 `sha256(type + 요청 JSON + lang)`이고, `departure_time`은 키에서 뺀다 (출발 시각만 다른 같은 경로는 설명을 같이 쓴다).
+- 모델은 `.env`의 `GEMINI_MODEL` (비우면 `gemini-3.5-flash-lite`). 5초 안에 답이 없으면 끊는다.
+- Gemini 호출이 실패하거나 시간이 초과되면, 또는 서버에 API 키가 없으면 `503 AI_UNAVAILABLE`을 준다. 이때 앱은 경로 화면을 그대로 두고 설명 칸에만 오류를 보여 주면 된다.
+
+**`/explain` 오류**
+
+| 상황 | 응답 |
+|---|---|
+| `type`이 `route`·`meeting`이 아님, `lang`이 위 6개가 아님 | 400 `VALIDATION_ERROR` `{"field": "type" 또는 "lang", "supported": [...]}` |
+| `request` 안의 값이 틀림 (예: `criteria: "fastest"`) | 400 `VALIDATION_ERROR` `{"field": "request.criteria"}` |
+| `request`의 역이 없음, `request.lang`이 ko·en이 아님 | `/routes`와 같음 (400 `STATION_NOT_FOUND`, 400 `UNSUPPORTED_LANGUAGE`) |
+| `type`, `request`, `lang` 중 빠진 값 | 422 `INVALID_REQUEST` |
 
 ---
 
@@ -297,15 +314,17 @@ GET /stations?lang=en
 
 | HTTP | `code` | 언제 | 해당 API | `details` 예 |
 |---|---|---|---|---|
-| 400 | `STATION_NOT_FOUND` | 없는 역 ID | `/routes`, `/meeting-station` | `{"station_id": "999"}` |
+| 400 | `STATION_NOT_FOUND` | 없는 역 ID | `/routes`, `/meeting-station`, `/explain` | `{"station_id": "999"}` |
 | 400 | `SAME_STATION` | 출발역 = 도착역 | `/routes` | `{"station_id": "101"}` |
 | 400 | `INVALID_PARTICIPANT_COUNT` | 출발역이 2개 미만이거나 4개 초과 | `/meeting-station` | `{"count": 5, "min": 2, "max": 4}` |
-| 400 | `UNSUPPORTED_LANGUAGE` | 지원하지 않는 `lang` **(가안, 논의 필요 9)** | 전체 | `{"lang": "ja", "supported": ["ko", "en"]}` |
+| 400 | `UNSUPPORTED_LANGUAGE` | 역 이름 `lang`이 ko·en이 아님 **(가안, 논의 필요 9)** | 전체 (`/explain`은 `request.lang`) | `{"lang": "ja", "supported": ["ko", "en"]}` |
+| 400 | `VALIDATION_ERROR` | `/explain`의 `type`·`lang`·`request` 값이 틀림 (4장) | `/explain` | `{"field": "lang", "supported": [...]}` |
 | 404 | `NOT_FOUND` | 없는 주소로 요청 (예: `GET /route`) | 전체 | 없음 |
 | 404 | `NO_ROUTE` | 두 역을 잇는 경로가 없음. 지금 데이터는 모든 역이 이어져 있어 나지 않는다 | `/routes` | `{"start_station_id": "101", "end_station_id": "207"}` |
 | 405 | `METHOD_NOT_ALLOWED` | 주소는 있지만 허용하지 않는 방식 (예: `GET /routes`) | 전체 | 없음 |
-| 422 | `INVALID_REQUEST` | 필수 값 누락, 타입 오류, `criteria`·`type`의 잘못된 값, JSON 형식 오류 | 전체 | `{"field": "criteria"}` |
-| 503 | `AI_UNAVAILABLE` | Gemini 호출 실패·시간 초과 | `/explain` | 없음 |
+| 422 | `INVALID_REQUEST` | 필수 값 누락, 타입 오류, `criteria`의 잘못된 값, JSON 형식 오류 | 전체 | `{"field": "criteria"}` |
+| 501 | `NOT_IMPLEMENTED` | 모임역 알고리즘이 아직 없음 | `/meeting-station`, `/explain`(`type: "meeting"`) | 없음 |
+| 503 | `AI_UNAVAILABLE` | Gemini 호출 실패·시간 초과, 서버에 API 키 없음 | `/explain` | 없음 |
 | 500 | `INTERNAL_ERROR` | 그 밖의 서버 오류 | 전체 | 없음 |
 
 구현 메모 (서버 담당): FastAPI는 입력 검증 오류를 `{"detail": [...]}`, 없는 주소를 `{"detail": "Not Found"}` 모양으로 돌려준다. `backend/app/errors.py`의 오류 처리기가 이것들과 예상 못 한 오류를 모두 위 형식으로 바꾼다. 코드에서 직접 오류를 낼 때는 `AppError(400, "STATION_NOT_FOUND", "...", {"station_id": "999"})`를 쓴다.
@@ -317,6 +336,8 @@ GET /stations?lang=en
 > `backend/app/routing`은 **표혜정 담당 폴더**다. 이 장의 모양은 표혜정·이진이 합의했다 (2026-11-05). 바꿀 때는 두 사람이 같이 정한다.
 >
 > 구현 위치: 결과 모양 `routing/models.py`, 노선도 읽기 `routing/graph_builder.py`(`load_network`), 경로 계산 `routing/dijkstra.py`(`find_route`)
+>
+> 모임역 `find_meeting_station`은 아직 없다. 기준별 계산식은 `data/extra/ASSUMPTIONS.md`의 "모임역 추천 기준"을 따른다. 만들면 `backend/app/api/meeting.py`의 임시 함수(501을 내는 것)를 지우고 이 함수를 import한다.
 
 **역할 나누기**
 
@@ -411,13 +432,13 @@ def find_meeting_station(network: Network, starts: list[StationId], criteria: Me
 ASSUMPTIONS.md에 아직 없는 내용이라 이 문서에서 정하지 않았다. 정해지면 ASSUMPTIONS.md에 적고, 이 목록과 위 **(가안)** 표시를 고친다.
 
 1. **방향 표기** (AGENTS.md 미확정 항목): "○○ 방면"의 ○○에 어떤 역을 넣을지. 예시는 진행 방향 종점(가안)이다. 순환선(1·6호선)은 종점이 없어서 지금은 `null`로 두었다. 다음 역, 주요 역, 내선/외선 중 무엇을 쓸지 정해야 한다.
-2. **모임역 기준별 계산식** (AGENTS.md 미확정 항목): `time`·`transfers`·`fairness`가 각각 무엇을 가장 작게 만드는지. 사람별 이동 시간을 최단 시간 경로와 최소 환승 경로 중 무엇으로 잴지, 점수가 같을 때 어떻게 고를지도 함께 정해야 한다.
-3. **모임역 입력 예외**: 여러 사람이 같은 출발역을 넣어도 되는지. 출발역 중 하나가 모임역으로 추천되어도 되는지 (그러면 그 사람은 0초).
+2. ~~**모임역 기준별 계산식**~~ → 확정 (2026-11-16). `data/extra/ASSUMPTIONS.md` "모임역 추천 기준".
+3. ~~**모임역 입력 예외**~~ → 확정 (2026-11-16). 같은 출발역 중복 허용, 출발역이 모임역이 되어도 됨 (ASSUMPTIONS.md).
 4. **주변 인프라**: 가상 노선이라 실제 주변 시설 데이터가 없다. Gemini가 지어내서도 안 된다. 데이터를 어디서 가져올지, 항목 형식(이름, 종류 등)을 어떻게 할지 정해야 한다. 정할 때까지는 `[]`.
 5. **도착 예정 시각**: 시간표 데이터가 없어 기다리는 시간 없이 `출발 시각 + total_sec`로 계산한다. 이대로 둘지, `departure_time`이 없을 때 서버 현재 시각을 써도 되는지.
-6. **`/explain` 지원 언어**: 지원할 언어 목록과 코드 형식 (예: 중국어 간체·번체를 `zh-CN`, `zh-TW`로 나눌지).
-7. **`/explain` 역 이름 표기**: 설명 언어가 ko·en이 아닐 때(예: `vi`) 역 이름을 영어 이름 그대로 쓸지, AI가 그 언어로 옮겨 적게 할지. AI가 옮겨 적으면 데이터에 없는 표기를 AI가 만드는 셈이다.
-8. **`/explain` 입력 신뢰**: 앱이 보낸 `result`를 서버가 그대로 믿을지, 다시 계산해서 확인할지. 조작된 값으로 Gemini가 호출되는 것(비용 낭비)을 막는 문제와 설명 캐시 키를 정하는 문제가 여기에 걸려 있다.
+6. ~~**`/explain` 지원 언어**~~ → 확정 (2026-11-16). `ko`, `en`, `ja`, `zh-Hans`, `zh-Hant`, `vi` (0장, 4장).
+7. **`/explain` 역 이름 표기**: 설명 언어가 ko·en이 아닐 때(예: `vi`) 역 이름을 영어 이름 그대로 쓸지, AI가 그 언어로 옮겨 적게 할지. AI가 옮겨 적으면 데이터에 없는 표기를 AI가 만드는 셈이다. 지금 구현은 `request.lang`의 이름을 그대로 쓴다 (옮겨 적지 않음).
+8. ~~**`/explain` 입력 신뢰**~~ → 확정 (2026-11-16). 앱은 결과 대신 요청을 보내고 서버가 다시 계산한다. 캐시 키도 요청으로 만든다 (4장).
 9. **지원하지 않는 `lang`**: 역 이름 API에 `ja`처럼 없는 언어가 오면 오류로 할지(가안: `UNSUPPORTED_LANGUAGE`), 영어 이름으로 대신 보여 줄지.
 10. **환승 비용**: 환승할 때는 비용을 더하지 않았다. transfers.csv에 비용 열이 없고, ASSUMPTIONS.md에는 "구간 비용의 합"이라고만 적혀 있어서 이렇게 해석했다. 이대로 확정할지.
 11. **모임역 비용 표시**: 모임역 응답의 사람별 결과에 비용(`cost_won`)도 넣을지. ASSUMPTIONS.md에는 경로 비용만 적혀 있다.
