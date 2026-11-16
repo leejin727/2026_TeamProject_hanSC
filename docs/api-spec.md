@@ -1,6 +1,6 @@
 # SubFit 서버 API 명세 (초안)
 
-> 작성 2026-11-04 · 구현됨: `GET /stations`, `POST /routes` (2026-11-11). `/meeting-station`, `/explain`은 아직 없음. 이 문서를 보고 앱에서 가짜 데이터(mock)를 만들 수 있게 하는 것이 목표.
+> 작성 2026-11-04 · 구현됨: `GET /stations`, `POST /routes` (2026-11-11). `/meeting-station은 2026-11-17 구현됨. 이 문서를 보고 앱에서 가짜 데이터(mock)를 만들 수 있게 하는 것이 목표.
 > 데이터 규칙은 `data/extra/ASSUMPTIONS.md`가 우선이다. **(가안)** 표시는 팀 결정 전 임시 값이며, 끝의 [논의 필요](#7-논의-필요)에서 확정한다.
 > 예시 값은 모두 실제 데이터(`stations.xlsx` + `data/extra/*.csv`)로 계산한 값이다.
 
@@ -191,50 +191,21 @@ GET /stations?lang=en
 
 ---
 
-## 3. POST /meeting-station — 모임역 추천
+## 3. POST /meeting-station — 모임역 추천 (2026-11-17 구현)
 
-**요청**
+요청: `{"start_station_ids":["101","101","207"],"criteria":"transfers","lang":"ko"}`
 
-```json
-{
-  "start_station_ids": ["101", "416", "805"],
-  "criteria": "time",
-  "lang": "en"
-}
-```
+2~4명의 문자열 역 ID를 받으며 중복 출발역과 출발역 자체의 추천을 허용한다.
+`time`: 개인별 최단 시간의 합계. `transfers`: 개인별 최소 환승의 합계, 해당 경로의 시간 합계.
+`fairness`: 개인별 최단 시간의 최대값, 시간 합계. 마지막 동점은 숫자 역 번호로 결정한다.
 
-| 필드 | 필수 | 설명 |
-|---|---|---|
-| `start_station_ids` | O | 사람별 출발역 ID. **2~4개**. 범위 밖이면 오류 `INVALID_PARTICIPANT_COUNT` |
-| `criteria` | O | `"time"` 최단시간 / `"transfers"` 최소환승 / `"fairness"` 공평성. 기준별 계산식은 **논의 필요 2** |
-| `lang` | O | `ko` 또는 `en` |
+응답: `criteria`, `station: {id,name}`, `participants`, `total_travel_sec`, `total_transfer_count`, `max_travel_sec`, `nearby_facilities: []`.
+참여자 결과: `start`, `travel_sec`, `transfer_count`, `stations`, `segments`, `transfers`.
+구간·환승의 내부 형식은 /routes와 같으며 시간 단위는 초다. 요금 필드는 없다.
+공통 후보가 없으면 `404 NO_MEETING_STATION`. 나머지 입력 오류는 기존 공통 오류 형식을 따른다.
 
-**응답 200**
+[전체 설계 및 실행 방법](meeting-algorithm.md) · [실행으로 생성한 응답 예시](meeting-example.json)
 
-```json
-{
-  "criteria": "time",
-  "station": {"id": "705", "name": "Moran"},
-  "participants": [
-    {"start": {"id": "101", "name": "Sindorim"}, "travel_sec": 4540, "transfer_count": 2},
-    {"start": {"id": "416", "name": "Nowon"}, "travel_sec": 900, "transfer_count": 0},
-    {"start": {"id": "805", "name": "Jangji"}, "travel_sec": 810, "transfer_count": 0}
-  ],
-  "nearby_facilities": []
-}
-```
-
-| 필드 | 설명 |
-|---|---|
-| `station` | 추천 모임역 1개 (TOP3 비교는 향후 기능) |
-| `participants` | 사람별 결과. **요청한 `start_station_ids` 순서 그대로** |
-| `participants[].travel_sec` | 그 사람의 출발역 → 모임역 이동 시간 (환승 시간 포함) |
-| `participants[].transfer_count` | 그 사람의 환승 횟수 |
-| `nearby_facilities` | 주변 인프라. 지금은 데이터가 없어서 **항상 빈 목록 `[]`**. 항목 형식은 논의 필요 4 |
-
-예시의 사람별 시간은 각자 모란(705)까지 가는 최단 시간 경로로 계산한 실제 값이다. 모란을 고른 것은 "세 사람 이동 시간의 합이 가장 작은 역"으로 해 본 **예시일 뿐**이다. 실제 추천 역은 기준별 계산식이 정해져야 확정된다.
-
----
 
 ## 4. POST /explain — AI 설명
 
@@ -380,11 +351,19 @@ class ParticipantResult:
     start: StationId
     travel_sec: int
     transfer_count: int
+    stations: list[StationId]
+    segments: list[Segment]
+    transfers: list[Transfer]
 
 
 @dataclass
 class MeetingResult:
+    criteria: MeetingCriteria
     station: StationId
+    station_names: tuple[str, str]
+    total_travel_sec: int
+    total_transfer_count: int
+    max_travel_sec: int
     participants: list[ParticipantResult]  # 입력 starts 순서 그대로
 
 
@@ -411,8 +390,6 @@ def find_meeting_station(network: Network, starts: list[StationId], criteria: Me
 ASSUMPTIONS.md에 아직 없는 내용이라 이 문서에서 정하지 않았다. 정해지면 ASSUMPTIONS.md에 적고, 이 목록과 위 **(가안)** 표시를 고친다.
 
 1. **방향 표기** (AGENTS.md 미확정 항목): "○○ 방면"의 ○○에 어떤 역을 넣을지. 예시는 진행 방향 종점(가안)이다. 순환선(1·6호선)은 종점이 없어서 지금은 `null`로 두었다. 다음 역, 주요 역, 내선/외선 중 무엇을 쓸지 정해야 한다.
-2. **모임역 기준별 계산식** (AGENTS.md 미확정 항목): `time`·`transfers`·`fairness`가 각각 무엇을 가장 작게 만드는지. 사람별 이동 시간을 최단 시간 경로와 최소 환승 경로 중 무엇으로 잴지, 점수가 같을 때 어떻게 고를지도 함께 정해야 한다.
-3. **모임역 입력 예외**: 여러 사람이 같은 출발역을 넣어도 되는지. 출발역 중 하나가 모임역으로 추천되어도 되는지 (그러면 그 사람은 0초).
 4. **주변 인프라**: 가상 노선이라 실제 주변 시설 데이터가 없다. Gemini가 지어내서도 안 된다. 데이터를 어디서 가져올지, 항목 형식(이름, 종류 등)을 어떻게 할지 정해야 한다. 정할 때까지는 `[]`.
 5. **도착 예정 시각**: 시간표 데이터가 없어 기다리는 시간 없이 `출발 시각 + total_sec`로 계산한다. 이대로 둘지, `departure_time`이 없을 때 서버 현재 시각을 써도 되는지.
 6. **`/explain` 지원 언어**: 지원할 언어 목록과 코드 형식 (예: 중국어 간체·번체를 `zh-CN`, `zh-TW`로 나눌지).
@@ -420,5 +397,4 @@ ASSUMPTIONS.md에 아직 없는 내용이라 이 문서에서 정하지 않았�
 8. **`/explain` 입력 신뢰**: 앱이 보낸 `result`를 서버가 그대로 믿을지, 다시 계산해서 확인할지. 조작된 값으로 Gemini가 호출되는 것(비용 낭비)을 막는 문제와 설명 캐시 키를 정하는 문제가 여기에 걸려 있다.
 9. **지원하지 않는 `lang`**: 역 이름 API에 `ja`처럼 없는 언어가 오면 오류로 할지(가안: `UNSUPPORTED_LANGUAGE`), 영어 이름으로 대신 보여 줄지.
 10. **환승 비용**: 환승할 때는 비용을 더하지 않았다. transfers.csv에 비용 열이 없고, ASSUMPTIONS.md에는 "구간 비용의 합"이라고만 적혀 있어서 이렇게 해석했다. 이대로 확정할지.
-11. **모임역 비용 표시**: 모임역 응답의 사람별 결과에 비용(`cost_won`)도 넣을지. ASSUMPTIONS.md에는 경로 비용만 적혀 있다.
 12. **순환선 여부 전달**: 지금 앱은 API로 어떤 노선이 순환선인지 알 수 없고, `direction: null`만 보인다. `GET /stations`에 노선 정보(순환선 여부)를 함께 줄지.

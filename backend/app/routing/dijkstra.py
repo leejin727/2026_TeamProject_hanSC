@@ -1,5 +1,7 @@
+"""공통 Dijkstra 탐색 기록과 경로 복원. 시간·환승 기록을 사전식 비교한다."""
 import heapq
-from .models import RouteResult, Segment, Transfer
+from dataclasses import dataclass
+from .models import RouteResult, Segment, Transfer, Node, Edge
 
 class UnknownStationError(ValueError):
     pass
@@ -7,43 +9,49 @@ class UnknownStationError(ValueError):
 class NoRouteError(ValueError):
     pass
 
-def find_route(network, start, end, criteria):
-    """start 역에서 end 역까지의 경로를 찾는다.
+@dataclass
+class SearchResult:
+    start: str
+    criteria: str
+    distances: dict[Node, tuple[int, int]]
+    previous: dict[Node, tuple[Node, Edge]]
+    station_nodes: dict[str, Node]
 
-    - 역 ID는 문자열 (예: "101")
-    - criteria: "time" 최단 시간 / "transfers" 최소 환승
-    - 총 시간에는 환승 시간이 들어간다. 출발역에서 처음 탈 때와 도착역에서 내릴 때는
-      환승 시간을 넣지 않는다. 기다리는 시간 데이터는 없다.
-    """
+def search(network, start, criteria, end=None):
+    """end가 없으면 전체 탐색. station_nodes에는 확정한 도착 노드를 저장한다."""
     if criteria not in ("time", "transfers"):
         raise ValueError(f"Unknown criteria: {criteria!r}")
-    for station in (start, end):
+    for station in (start,) if end is None else (start, end):
         if not isinstance(station, str) or station not in network.names:
             raise UnknownStationError(f"Unknown station: {station!r}")
-    if start == end:
-        return RouteResult([], [], 0, 0)
-    distances, previous, queue = {}, {}, []
+    distances, previous, queue, station_nodes = {}, {}, [], {}
     for node in sorted(network.adjacency):
         if node[0] == start:
             distances[node] = (0, 0)
             heapq.heappush(queue, ((0, 0), node))
-    end_node = None
     while queue:
-        cost, node = heapq.heappop(queue)
-        if cost != distances[node]:
+        record, node = heapq.heappop(queue)
+        if record != distances[node]:
             continue
+        # 우선순위 큐에서 처음 확정한 노드가 해당 역의 최선 기록이다.
+        station_nodes.setdefault(node[0], node)
         if node[0] == end:
-            end_node = node
             break
         for edge in network.adjacency[node]:
-            delta = (int(edge.transfer), edge.seconds) if criteria == "transfers" else (edge.seconds, int(edge.transfer))
-            candidate = (cost[0] + delta[0], cost[1] + delta[1])
+            delta = ((int(edge.transfer), edge.seconds) if criteria == "transfers"
+                     else (edge.seconds, int(edge.transfer)))
+            candidate = (record[0] + delta[0], record[1] + delta[1])
             if edge.target not in distances or candidate < distances[edge.target]:
                 distances[edge.target] = candidate
                 previous[edge.target] = node, edge
                 heapq.heappush(queue, (candidate, edge.target))
-    if end_node is None:
-        raise NoRouteError(f"No route from {start} to {end}")
+    return SearchResult(start, criteria, distances, previous, station_nodes)
+
+def restore_route(result, end_node, *, include_fare=True):
+    """저장한 이전 노드로 복원한다. 모임역에서는 요금을 누적하지 않는다."""
+    previous = result.previous
+    if end_node not in result.distances:
+        raise NoRouteError(f"Unreachable node: {end_node!r}")
     steps = []
     while end_node in previous:
         node, edge = previous[end_node]
@@ -56,7 +64,8 @@ def find_route(network, start, end, criteria):
     total_sec = cost_won = 0
     for node, edge in reversed(steps):
         total_sec += edge.seconds
-        cost_won += edge.cost_won
+        if include_fare:
+            cost_won += edge.cost_won
         if edge.transfer:
             transfers.append(Transfer(node[0], node[1], edge.target[1], edge.seconds))
             continue
@@ -68,3 +77,13 @@ def find_route(network, start, end, criteria):
     # direction: 방향 표기 방식이 아직 정해지지 않아 None (api-spec 논의 필요 1)
     segments = [Segment(r["line"], r["stations"], None, r["ride_sec"]) for r in rides]
     return RouteResult(segments, transfers, total_sec, cost_won)
+
+
+def find_route(network, start, end, criteria):
+    """기존 단일 목적지 인터페이스와 응답 형식을 유지한다."""
+    result = search(network, start, criteria, end=end)
+    if start == end:
+        return RouteResult([], [], 0, 0)
+    if end not in result.station_nodes:
+        raise NoRouteError(f"No route from {start} to {end}")
+    return restore_route(result, result.station_nodes[end])

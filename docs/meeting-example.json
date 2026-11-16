@@ -1,0 +1,177 @@
+{
+  "criteria": "transfers",
+  "station": {
+    "id": "123",
+    "name": "압구정"
+  },
+  "participants": [
+    {
+      "start": {
+        "id": "101",
+        "name": "신도림"
+      },
+      "travel_sec": 480,
+      "transfer_count": 0,
+      "stations": [
+        {
+          "id": "101",
+          "name": "신도림"
+        },
+        {
+          "id": "123",
+          "name": "압구정"
+        }
+      ],
+      "segments": [
+        {
+          "line": 1,
+          "board": {
+            "id": "101",
+            "name": "신도림"
+          },
+          "alight": {
+            "id": "123",
+            "name": "압구정"
+          },
+          "direction": null,
+          "stations": [
+            {
+              "id": "101",
+              "name": "신도림"
+            },
+            {
+              "id": "123",
+              "name": "압구정"
+            }
+          ],
+          "ride_sec": 480
+        }
+      ],
+      "transfers": []
+    },
+    {
+      "start": {
+        "id": "101",
+        "name": "신도림"
+      },
+      "travel_sec": 480,
+      "transfer_count": 0,
+      "stations": [
+        {
+          "id": "101",
+          "name": "신도림"
+        },
+        {
+          "id": "123",
+          "name": "압구정"
+        }
+      ],
+      "segments": [
+        {
+          "line": 1,
+          "board": {
+            "id": "101",
+            "name": "신도림"
+          },
+          "alight": {
+            "id": "123",
+            "name": "압구정"
+          },
+          "direction": null,
+          "stations": [
+            {
+              "id": "101",
+              "name": "신도림"
+            },
+            {
+              "id": "123",
+              "name": "압구정"
+            }
+          ],
+          "ride_sec": 480
+        }
+      ],
+      "transfers": []
+    },
+    {
+      "start": {
+        "id": "207",
+        "name": "교대"
+      },
+      "travel_sec": 1730,
+      "transfer_count": 0,
+      "stations": [
+        {
+          "id": "207",
+          "name": "교대"
+        },
+        {
+          "id": "301",
+          "name": "남부터미널"
+        },
+        {
+          "id": "302",
+          "name": "잠원"
+        },
+        {
+          "id": "303",
+          "name": "고속터미널"
+        },
+        {
+          "id": "304",
+          "name": "신사"
+        },
+        {
+          "id": "123",
+          "name": "압구정"
+        }
+      ],
+      "segments": [
+        {
+          "line": 3,
+          "board": {
+            "id": "207",
+            "name": "교대"
+          },
+          "alight": {
+            "id": "123",
+            "name": "압구정"
+          },
+          "direction": null,
+          "stations": [
+            {
+              "id": "207",
+              "name": "교대"
+            },
+            {
+              "id": "301",
+              "name": "남부터미널"
+            },
+            {
+              "id": "302",
+              "name": "잠원"
+            },
+            {
+              "id": "303",
+              "name": "고속터미널"
+            },
+            {
+              "id": "304",
+              "name": "신사"
+            },
+            {
+              "id": "123",
+              "name": "압구정"
+            }
+          ],
+          "ride_sec": 1730
+        }
+      ],
+      "transfers": []
+    }
+  ],
+  "total_travel_sec": 2690,
+  "total_transfer_count": 0,
+  "max_travel_sec": 1730,
+  "nearby_facilities": []
+}
