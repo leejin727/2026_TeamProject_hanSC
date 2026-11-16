@@ -6,6 +6,9 @@ fastapi==0.162.0
 uvicorn==0.54.0
 python-dotenv==1.2.4
 
+# AI 설명(POST /explain): Google Gemini 공식 라이브러리. 서버에서만 호출한다 (키는 .env)
+google-genai==3.3.0
+
 # DB: PostgreSQL 접속 도구. [binary]를 붙이면 따로 컴파일하지 않고 바로 설치된다
 psycopg[binary]==3.3.8
 

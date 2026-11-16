@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 
-from app.api import routes, stations
+from app.api import explain, routes, stations
 from app.config import DATA_DIR
 from app.errors import register_error_handlers
 from app.routing.graph_builder import load_network
@@ -27,6 +27,7 @@ app = FastAPI(title="SubFit API", lifespan=lifespan)
 register_error_handlers(app)
 app.include_router(stations.router)
 app.include_router(routes.router)
+app.include_router(explain.router)
 
 
 @app.middleware("http")
