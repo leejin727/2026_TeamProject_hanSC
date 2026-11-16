@@ -9,6 +9,7 @@ from pydantic import BaseModel
 from app.api.common import check_lang, check_station, station_ref
 from app.errors import AppError
 from app.routing.dijkstra import NoRouteError, UnknownStationError, find_route
+from app.routing.graph_builder import Network
 
 router = APIRouter()
 
@@ -25,7 +26,11 @@ class RouteRequest(BaseModel):
 
 @router.post("/routes")
 def calculate_route(body: RouteRequest, request: Request) -> dict:
-    network = request.app.state.network
+    return compute_route(request.app.state.network, body)
+
+
+def compute_route(network: Network, body: RouteRequest) -> dict:
+    """입력 검사 + 경로 계산 + 응답 모양 만들기. POST /explain도 이 함수로 경로를 다시 계산한다."""
     start, end, lang = body.start_station_id, body.end_station_id, body.lang
 
     # 입력 검사는 API 층이 먼저 한다 (명세 6장). 순서: 언어 → 출발역 → 도착역 → 같은 역
