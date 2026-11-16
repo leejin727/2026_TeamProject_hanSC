@@ -42,7 +42,7 @@ def calculate_meeting_station(body: MeetingRequest, request: Request) -> dict:
                 "stations": [ref(s) for s in p.stations],
                 "segments": [
                     {"line": s.line, "board": ref(s.stations[0]), "alight": ref(s.stations[-1]),
-                     "direction": None, "stations": [ref(x) for x in s.stations], "ride_sec": s.ride_sec}
+                     "direction": ref(s.direction) if s.direction is not None else None, "stations": [ref(x) for x in s.stations], "ride_sec": s.ride_sec}
                     for s in p.segments
                 ],
                 "transfers": [

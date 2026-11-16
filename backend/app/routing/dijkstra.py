@@ -74,8 +74,8 @@ def restore_route(result, end_node, *, include_fare=True):
             rides.append({"line": line, "stations": [station], "ride_sec": 0})
         rides[-1]["stations"].append(edge.target[0])
         rides[-1]["ride_sec"] += edge.seconds
-    # direction: 방향 표기 방식이 아직 정해지지 않아 None (api-spec 논의 필요 1)
-    segments = [Segment(r["line"], r["stations"], None, r["ride_sec"]) for r in rides]
+    # 실제 이동 구간의 다음 역으로 방면을 정한다. 순환선도 같은 규칙을 쓴다.
+    segments = [Segment(r["line"], r["stations"], r["stations"][1], r["ride_sec"]) for r in rides]
     return RouteResult(segments, transfers, total_sec, cost_won)
 
 

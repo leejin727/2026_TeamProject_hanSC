@@ -224,8 +224,8 @@ class SpecExampleTests(unittest.TestCase):
         r = find_route(self.network, "101", "207", "time")
         self.assertEqual((r.total_sec, len(r.transfers), r.cost_won), (2510, 1, 4190))
         self.assertEqual([(s.line, s.stations, s.direction, s.ride_sec) for s in r.segments], [
-            (1, ["101", "123"], None, 480),
-            (3, ["123", "304", "303", "302", "301", "207"], None, 1730),
+            (1, ["101", "123"], "123", 480),
+            (3, ["123", "304", "303", "302", "301", "207"], "304", 1730),
         ])
         self.assertEqual(r.transfers, [Transfer("123", 1, 3, 300)])
 

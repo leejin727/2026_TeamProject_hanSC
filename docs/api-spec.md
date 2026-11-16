@@ -30,7 +30,7 @@
 - 환승역도 API에서는 ID가 하나다 (예: `"123"`). 노선별로 나눈 노드(`123@1`, `123@3`)는 서버 안에서만 쓰고 앱에는 나오지 않는다.
 - 비용은 지나간 구간 비용을 단순히 더한 값이다. **실제 지하철 요금이 아니며** 실제 요금 규칙은 적용하지 않는다 (ASSUMPTIONS.md).
 - 거리(미터)는 원본에 있지만 API 응답에는 넣지 않는다 (팀 결정 2026-11-05).
-- 모든 구간은 양방향이고 두 방향의 시간·비용이 같다 (ASSUMPTIONS.md). 예: 207→101 최단 시간 경로는 2장 첫 예시를 거꾸로 탄 경로다. `total_sec` 2510과 `cost_won` 4190은 같고, `direction`만 반대쪽이다 (3호선 구간은 `107` 종로3가 방면).
+- 모든 구간은 양방향이고 두 방향의 시간·비용이 같다 (ASSUMPTIONS.md). 예: 207→101 최단 시간 경로는 2장 첫 예시를 거꾸로 탄 경로다. `total_sec` 2510과 `cost_won` 4190은 같고, `direction`만 반대쪽이다 (3호선 구간은 `301` 남부터미널 방면).
 - 역 이름은 실제 서울 역명을 빌려 왔지만 위치와 순서는 실제와 관계없는 가상 배치다 (ASSUMPTIONS.md).
 
 **`lang` 값**
@@ -110,7 +110,7 @@ GET /stations?lang=en
       "line": 1,
       "board": {"id": "101", "name": "Sindorim"},
       "alight": {"id": "123", "name": "Apgujeong"},
-      "direction": null,
+      "direction": {"id": "123", "name": "Apgujeong"},
       "stations": [
         {"id": "101", "name": "Sindorim"},
         {"id": "123", "name": "Apgujeong"}
@@ -121,7 +121,7 @@ GET /stations?lang=en
       "line": 3,
       "board": {"id": "123", "name": "Apgujeong"},
       "alight": {"id": "207", "name": "Seoul Nat'l Univ. of Education"},
-      "direction": {"id": "207", "name": "Seoul Nat'l Univ. of Education"},
+      "direction": {"id": "304", "name": "Sinsa"},
       "stations": [
         {"id": "123", "name": "Apgujeong"},
         {"id": "304", "name": "Sinsa"},
@@ -143,7 +143,7 @@ GET /stations?lang=en
 |---|---|
 | `segments` | 한 노선을 연속으로 타는 구간 목록. 탄 순서대로 |
 | `segments[].board` / `alight` | 그 구간의 탑승역 / 하차역 |
-| `segments[].direction` | "○○ 방면"의 ○○에 들어갈 역. 문구는 앱이 언어에 맞게 만든다 (`ko`: "교대 방면", `en`: "toward …"). 예시는 **진행 방향 종점 (가안)**. 순환선(1·6호선)은 아직 `null` **(논의 필요 1)**. 표기 방식이 정해질 때까지 **서버는 모든 노선에서 `null`을 준다** |
+| `segments[].direction` | 해당 이동 구간의 다음 역 객체(`stations[1]`). 최초 탑승·환승·순환선에 같은 규칙 적용. 앱은 `ko`: "신사 방면", `en`: "toward Sinsa"로 표시한다. 종착역행이 아니다. |
 | `segments[].stations` | 그 구간에서 지나는 역 전체. 탑승역과 하차역도 포함 |
 | `segments[].ride_sec` | 그 구간의 탑승 시간 (구간 시간의 합) |
 | `transfers` | 환승 목록. `sec`은 `transfers.csv` 값 (지금은 모두 300) |
@@ -169,7 +169,7 @@ GET /stations?lang=en
       "line": 2,
       "board": {"id": "101", "name": "Sindorim"},
       "alight": {"id": "207", "name": "Seoul Nat'l Univ. of Education"},
-      "direction": {"id": "217", "name": "Gangbyeon"},
+      "direction": {"id": "201", "name": "Mullae"},
       "stations": [
         {"id": "101", "name": "Sindorim"},
         {"id": "201", "name": "Mullae"},
@@ -293,7 +293,7 @@ GET /stations?lang=en
 
 | 누가 | 하는 일 |
 |---|---|
-| routing (`find_route`, `find_meeting_station`) | 역 ID와 숫자만 다룬다: 경로, 구간별 시간, 환승, 비용, 방향 역 (방향은 표기 방식이 정해진 뒤) |
+| routing (`find_route`, `find_meeting_station`) | 역 ID와 숫자만 다룬다: 경로, 구간별 시간, 환승, 비용, 방향 역 (각 이동 구간의 다음 역) |
 | API 층 (`backend/app`) | 입력 검사(없는 역, 출발=도착, 인원 수, `lang`), 역 이름 붙이기, `arrival_time` 계산, 오류 응답 만들기 |
 
 routing 함수는 **검사를 통과한 입력만 받는다**고 가정한다. 입력 오류는 API 층이 먼저 막고, routing이 내는 오류는 안전장치다.
@@ -322,7 +322,7 @@ network = load_network(DATA_DIR)  # DATA_DIR = 저장소 최상위 data/ 폴더 
 class Segment:
     line: int                    # 노선 번호
     stations: list[StationId]    # 탑승역 ~ 하차역 (양 끝 포함, 탄 순서대로)
-    direction: StationId | None  # "○○ 방면"의 ○○ 역. 표기 방식(논의 필요 1)이 정해질 때까지 항상 None
+    direction: StationId | None  # 탑승 직후 다음 역 ID
     ride_sec: int                # 이 구간 탑승 시간의 합
 
 
@@ -389,7 +389,7 @@ def find_meeting_station(network: Network, starts: list[StationId], criteria: Me
 
 ASSUMPTIONS.md에 아직 없는 내용이라 이 문서에서 정하지 않았다. 정해지면 ASSUMPTIONS.md에 적고, 이 목록과 위 **(가안)** 표시를 고친다.
 
-1. **방향 표기** (AGENTS.md 미확정 항목): "○○ 방면"의 ○○에 어떤 역을 넣을지. 예시는 진행 방향 종점(가안)이다. 순환선(1·6호선)은 종점이 없어서 지금은 `null`로 두었다. 다음 역, 주요 역, 내선/외선 중 무엇을 쓸지 정해야 한다.
+1. **방향 표기 확정 (2026-11-17)**: 각 이동 구간의 다음 역을 방면으로 사용한다. 순환선도 동일하다.
 4. **주변 인프라**: 가상 노선이라 실제 주변 시설 데이터가 없다. Gemini가 지어내서도 안 된다. 데이터를 어디서 가져올지, 항목 형식(이름, 종류 등)을 어떻게 할지 정해야 한다. 정할 때까지는 `[]`.
 5. **도착 예정 시각**: 시간표 데이터가 없어 기다리는 시간 없이 `출발 시각 + total_sec`로 계산한다. 이대로 둘지, `departure_time`이 없을 때 서버 현재 시각을 써도 되는지.
 6. **`/explain` 지원 언어**: 지원할 언어 목록과 코드 형식 (예: 중국어 간체·번체를 `zh-CN`, `zh-TW`로 나눌지).
@@ -397,4 +397,4 @@ ASSUMPTIONS.md에 아직 없는 내용이라 이 문서에서 정하지 않았�
 8. **`/explain` 입력 신뢰**: 앱이 보낸 `result`를 서버가 그대로 믿을지, 다시 계산해서 확인할지. 조작된 값으로 Gemini가 호출되는 것(비용 낭비)을 막는 문제와 설명 캐시 키를 정하는 문제가 여기에 걸려 있다.
 9. **지원하지 않는 `lang`**: 역 이름 API에 `ja`처럼 없는 언어가 오면 오류로 할지(가안: `UNSUPPORTED_LANGUAGE`), 영어 이름으로 대신 보여 줄지.
 10. **환승 비용**: 환승할 때는 비용을 더하지 않았다. transfers.csv에 비용 열이 없고, ASSUMPTIONS.md에는 "구간 비용의 합"이라고만 적혀 있어서 이렇게 해석했다. 이대로 확정할지.
-12. **순환선 여부 전달**: 지금 앱은 API로 어떤 노선이 순환선인지 알 수 없고, `direction: null`만 보인다. `GET /stations`에 노선 정보(순환선 여부)를 함께 줄지.
+12. **순환선 여부 전달**: 다음 역 방면은 순환선에도 제공한다. 별도의 순환선 표시용 메타데이터 전달은 추후 결정한다.

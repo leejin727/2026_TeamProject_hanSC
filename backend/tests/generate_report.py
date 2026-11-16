@@ -85,6 +85,7 @@ def generate(output):
                                    "기대환승_회": best[1], "실제환승_회": actual[1],
                                    "일치": True, "경유역": " → ".join(map(name, stations)),
                                    "노선": " → ".join(str(s.line) for s in route.segments),
+                                   "구간별방면": " → ".join(name(s.direction) for s in route.segments),
                                    "환승정보": json.dumps([asdict(t) for t in route.transfers], ensure_ascii=False)})
     meetings, meeting_rows = [], []
     cases = (["101", "101", "207"], ["101", "416", "805"], ["112", "118"])
@@ -123,6 +124,7 @@ def generate(output):
                                      "최대시간_초": result.max_travel_sec,
                                      "경유역": " → ".join(map(name, p.stations)),
                                      "노선": " → ".join(str(s.line) for s in p.segments),
+                                     "구간별방면": " → ".join(name(s.direction) for s in p.segments),
                                      "환승정보": json.dumps([asdict(t) for t in p.transfers], ensure_ascii=False)})
     files = [data / "raw/stations.xlsx"] + sorted((data / "extra").glob("*.csv"))
     edges = [edge for values in network.adjacency.values() for edge in values]

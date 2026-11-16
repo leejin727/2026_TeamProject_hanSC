@@ -17,7 +17,7 @@ def verify_route(route, start, end, raw_edges, allowed, transfers):
     for i, segment in enumerate(route.segments):
         assert len(segment.stations) >= 2
         assert segment.stations[0] == position
-        assert segment.direction is None
+        assert segment.direction == segment.stations[1]
         if i > 0:
             transfer = route.transfers[i - 1]
             assert line != segment.line

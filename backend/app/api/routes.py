@@ -73,7 +73,7 @@ def compute_route(network: Network, body: RouteRequest) -> dict:
                 "line": segment.line,
                 "board": ref(segment.stations[0]),
                 "alight": ref(segment.stations[-1]),
-                "direction": None,  # 방향 안내 구현 후 채움 (Segment.direction 역 + 이름)
+                "direction": ref(segment.direction) if segment.direction is not None else None,
                 "stations": [ref(station) for station in segment.stations],
                 "ride_sec": segment.ride_sec,
             }

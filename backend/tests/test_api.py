@@ -38,7 +38,7 @@ SINDORIM = st("101", "Sindorim")
 APGUJEONG = st("123", "Apgujeong")
 SNUE = st("207", "Seoul Nat'l Univ. of Education")
 
-# docs/api-spec.md 2장 첫 예시. direction은 표기 방식이 정해질 때까지 서버가 항상 null을 준다.
+# docs/api-spec.md 2장 첫 예시. direction은 각 이동 구간의 다음 역이다.
 SPEC_TIME_EXAMPLE = {
     "criteria": "time",
     "start": SINDORIM,
@@ -50,11 +50,11 @@ SPEC_TIME_EXAMPLE = {
     "cost_won": 4190,
     "segments": [
         {
-            "line": 1, "board": SINDORIM, "alight": APGUJEONG, "direction": None,
+            "line": 1, "board": SINDORIM, "alight": APGUJEONG, "direction": APGUJEONG,
             "stations": [SINDORIM, APGUJEONG], "ride_sec": 480,
         },
         {
-            "line": 3, "board": APGUJEONG, "alight": SNUE, "direction": None,
+            "line": 3, "board": APGUJEONG, "alight": SNUE, "direction": st("304", "Sinsa"),
             "stations": [
                 APGUJEONG, st("304", "Sinsa"), st("303", "Express Bus Terminal"),
                 st("302", "Jamwon"), st("301", "Nambu Bus Terminal"), SNUE,
