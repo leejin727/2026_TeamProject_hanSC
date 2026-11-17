@@ -82,3 +82,15 @@ CREATE TABLE IF NOT EXISTS ai_explanations (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     PRIMARY KEY (cache_key, lang)
 );
+
+-- 9. 주변 시설 AI 예시 캐시 — GET /stations/{id}/facilities가 채운다. load_db.py는 이 표를 건드리지 않는다.
+--    실제 데이터가 아니라 역 이름을 바탕으로 AI가 만든 예시다 (ASSUMPTIONS.md 팀 결정 2026-11-18).
+--    위 7번 nearby_facilities(실제 데이터용, 비어 있음)와는 다른 표다.
+--    같은 역 + 같은 언어면 Gemini를 다시 부르지 않고 저장된 items를 쓴다 → 같은 역은 늘 같은 시설이 보인다.
+CREATE TABLE IF NOT EXISTS ai_facilities (
+    station_id TEXT        NOT NULL,     -- 역 ID (예: '705')
+    lang       TEXT        NOT NULL,     -- 시설 이름·위치 안내 언어 (ko, en, ja …)
+    items      JSONB       NOT NULL,     -- [{"category", "name", "detail"}, …] 최대 5개
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (station_id, lang)
+);

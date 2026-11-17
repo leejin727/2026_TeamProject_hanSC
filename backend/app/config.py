@@ -42,6 +42,12 @@ def get_gemini_api_key() -> str:
     return _require("GEMINI_API_KEY")
 
 
+def get_gemini_facility_api_key() -> str:
+    """주변 시설(AI 예시)용 키. 설명용 키와 사용량을 나누려고 따로 둔다 (팀 결정 2026-11-18).
+    비어 있어도 GEMINI_API_KEY로 대신 쓰지 않는다."""
+    return _require("GEMINI_FACILITY_API_KEY")
+
+
 # 설계서에는 gemini-3.7-flash로 적었지만, 2026-10-08부터 지원 종료 예정(deprecated)이고 요청이
 # gemini-3.8-flash로 자동으로 넘어간다. 3.8-flash는 응답이 약 7.5초 걸려 당시 5초 제한(AI 설명 목표)을 넘었다.
 # 그래서 공식 권장·무료 티어인 flash 계열 중 가장 빠른(약 1초) 모델을 기본값으로 쓴다 (2026-11-16 확인).

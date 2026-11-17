@@ -1,7 +1,8 @@
-"""Gemini에 보내는 설명 프롬프트. 경로용(type=route)과 모임역용(type=meeting) 두 종류.
+"""Gemini에 보내는 프롬프트. 경로 설명(type=route), 모임역 설명(type=meeting), 주변 시설 예시.
 
 설계 원칙(AGENTS.md): 계산은 알고리즘, 설명은 AI.
-Gemini에는 서버가 계산한 값만 넘기고, 데이터에 없는 사실은 말하지 못하게 한다.
+경로·모임역 설명에는 서버가 계산한 값만 넘기고, 데이터에 없는 사실은 말하지 못하게 한다.
+주변 시설만 예외로, 역 이름을 바탕으로 AI가 예시를 만든다 (맨 아래).
 """
 
 import json
@@ -115,3 +116,36 @@ def meeting_prompt(result: dict, lang: str) -> tuple[str, str]:
         ],
     }
     return _system(_MEETING_SYSTEM, lang), _user("모임역 추천 결과", lang, data)
+
+
+# ----- 주변 시설 (AI 예시) -----
+# 위의 경로·모임역 설명과 달리, 여기서는 데이터에 없는 내용을 AI가 "만든다".
+# 노선도가 가상이라 실제 시설 데이터가 없어서, 역 이름만 빌려 예시를 만들기로 했다 (ASSUMPTIONS.md 팀 결정 2026-11-18).
+# 앱은 "AI가 만든 예시이며 실제와 다를 수 있음"을 함께 보여 준다.
+
+FACILITY_CATEGORIES = ("cafe", "restaurant", "convenience_store", "pharmacy", "restroom")
+
+_FACILITIES_SYSTEM = """너는 외국인 여행자를 위한 지하철 앱에서 역 주변 시설 예시를 만든다.
+이 앱의 노선도는 가상이고 역 이름만 실제 서울 지하철역에서 빌렸다.
+같은 이름의 실제 서울 역 주변을 떠올려, 그럴듯한 예시 시설을 만든다. 정확하지 않아도 되는 예시다.
+규칙:
+- name과 detail은 반드시 {language}로 쓴다. 가게 이름이 고유명사면 그 언어에서 자연스러운 표기를 쓴다.
+- {language}가 한국어가 아니면 한글을 한 글자도 쓰지 않는다. 한국 가게 이름도 그 언어 표기로 옮긴다 (예: 日本語 "スターバックス", English "Starbucks").
+- category마다 정확히 1개씩, 모두 5개: cafe(카페), restaurant(음식점), convenience_store(편의점), pharmacy(약국), restroom(공중화장실).
+- name은 시설 이름(20자 이내), detail은 위치 안내 한 줄이다. 형식 예: 한국어 "2번 출구 · 도보 3분", English "Exit 2 · 3 min walk".
+- 공중화장실은 "역 안 · 대합실"처럼 역 안 위치로 써도 된다.
+- 광고 문구, 전화번호, 가격, 영업시간, 위험하거나 불쾌한 내용은 쓰지 않는다.
+"""
+
+
+def facilities_prompt(name_ko: str, name_en: str, lang: str) -> tuple[str, str]:
+    """역 이름(한국어·영어)으로 주변 시설 예시를 만드는 프롬프트."""
+    system = _FACILITIES_SYSTEM.format(language=LANGUAGES[lang])
+    # 한국어가 아닌 언어에 한국어 역 이름을 같이 주면 답이 한국어로 나오는 일이 잦았다 (ja 3번 중 2번).
+    # 그래서 한국어일 때만 한국어 이름을 준다.
+    data = {"station_name_ko": name_ko} if lang == "ko" else {"station_name_en": name_en}
+    user = (
+        f"다음 역 주변의 시설 예시 5개를 만들어 줘. name과 detail은 반드시 {LANGUAGES[lang]}로 써.\n"
+        f"역(JSON):\n{json.dumps(data, ensure_ascii=False)}"
+    )
+    return system, user
