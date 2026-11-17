@@ -17,7 +17,7 @@ class Segment:
     """한 노선을 이어서 탄 구간 하나."""
     line: int
     stations: list[StationId]  # 탑승역 ~ 하차역 (양 끝 포함, 탄 순서대로)
-    direction: StationId | None  # 방면 역. 표기 방식이 정해질 때까지 항상 None
+    direction: StationId | None  # 탑승 직후 다음 역 ID. 종착역을 뜻하지 않는다
     ride_sec: int              # 이 구간 탑승 시간의 합
 
 @dataclass(frozen=True)

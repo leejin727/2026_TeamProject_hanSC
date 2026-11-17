@@ -54,7 +54,7 @@ def route_prompt(route: dict, lang: str) -> tuple[str, str]:
     """POST /routes 응답 모양의 경로를 받아 (시스템 지시, 사용자 메시지)를 만든다.
 
     출발·도착 시각은 넣지 않는다 (요청마다 달라져 저장한 설명을 다시 쓸 수 없게 된다).
-    비용은 실제 요금이 아니어서, 방향은 아직 계산하지 않아서(null) 넣지 않는다.
+    이 설명 기능에는 요금과 방향을 전달하지 않는다. 방면은 앱이 API의 direction으로 표시한다.
     """
     data = {
         "start": route["start"]["name"],
