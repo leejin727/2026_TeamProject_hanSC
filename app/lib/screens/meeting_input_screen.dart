@@ -94,16 +94,20 @@ class _MeetingInputScreenState extends State<MeetingInputScreen> {
         .toList();
 
     final String criteriaLabel;
+    final String criteria; // 서버에 보내는 값 (api-spec.md 3장)
 
     switch (_criteria) {
       case _RecommendationCriteria.fastest:
         criteriaLabel = '최단시간';
+        criteria = 'time';
         break;
       case _RecommendationCriteria.fairest:
         criteriaLabel = '공평성';
+        criteria = 'fairness';
         break;
       case _RecommendationCriteria.fewestTransfers:
         criteriaLabel = '최소환승';
+        criteria = 'transfers';
         break;
     }
 
@@ -111,6 +115,7 @@ class _MeetingInputScreenState extends State<MeetingInputScreen> {
       MaterialPageRoute<void>(
         builder: (context) => MeetingResultScreen(
           departures: departures,
+          criteria: criteria,
           criteriaLabel: criteriaLabel,
         ),
       ),

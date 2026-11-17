@@ -12,16 +12,40 @@ http.Response jsonResponse(Object body, [int status = 200]) =>
 
 const stationsKo = {
   'stations': [
-    {'id': '101', 'name': '신도림', 'lines': [1, 2]},
-    {'id': '104', 'name': '서울역', 'lines': [1]},
-    {'id': '207', 'name': '교대', 'lines': [2, 3]},
+    {
+      'id': '101',
+      'name': '신도림',
+      'lines': [1, 2],
+    },
+    {
+      'id': '104',
+      'name': '서울역',
+      'lines': [1],
+    },
+    {
+      'id': '207',
+      'name': '교대',
+      'lines': [2, 3],
+    },
   ],
 };
 const stationsEn = {
   'stations': [
-    {'id': '101', 'name': 'Sindorim', 'lines': [1, 2]},
-    {'id': '104', 'name': 'Seoul Station', 'lines': [1]},
-    {'id': '207', 'name': "Seoul Nat'l Univ. of Education", 'lines': [2, 3]},
+    {
+      'id': '101',
+      'name': 'Sindorim',
+      'lines': [1, 2],
+    },
+    {
+      'id': '104',
+      'name': 'Seoul Station',
+      'lines': [1],
+    },
+    {
+      'id': '207',
+      'name': "Seoul Nat'l Univ. of Education",
+      'lines': [2, 3],
+    },
   ],
 };
 
@@ -138,7 +162,10 @@ void main() {
       client: MockClient((request) async {
         expect(request.url.path, '/explain');
         sentBody = jsonDecode(request.body) as Map<String, dynamic>;
-        return jsonResponse({'explanation': '신도림에서 1호선을 타세요.', 'cached': false});
+        return jsonResponse({
+          'explanation': '신도림에서 1호선을 타세요.',
+          'cached': false,
+        });
       }),
     );
 
@@ -161,6 +188,88 @@ void main() {
       },
       'lang': 'ja',
     });
+  });
+
+  test('모임역 응답을 읽고, AI 설명은 같은 요청을 request에 넣어 보낸다', () async {
+    final sent = <String, Map<String, dynamic>>{};
+    final api = ApiClient(
+      baseUrl: 'http://test',
+      client: MockClient((request) async {
+        if (request.method == 'GET') return jsonResponse(stationsKo);
+        sent[request.url.path] =
+            jsonDecode(request.body) as Map<String, dynamic>;
+        if (request.url.path == '/explain') {
+          return jsonResponse({
+            'explanation': '모두의 이동 시간 합이 가장 작아요.',
+            'cached': true,
+          });
+        }
+        // docs/api-spec.md 3장 예시 (101·416·805 → 모란, time)에서 화면에 쓰는 값만
+        return jsonResponse({
+          'criteria': 'time',
+          'station': {'id': '705', 'name': '모란'},
+          'participants': [
+            {
+              'start': {'id': '101', 'name': '신도림'},
+              'travel_sec': 4540,
+              'transfer_count': 2,
+            },
+            {
+              'start': {'id': '416', 'name': '노원'},
+              'travel_sec': 900,
+              'transfer_count': 0,
+            },
+            {
+              'start': {'id': '805', 'name': '장지'},
+              'travel_sec': 810,
+              'transfer_count': 0,
+            },
+          ],
+          'total_travel_sec': 6250,
+          'total_transfer_count': 2,
+          'max_travel_sec': 4540,
+          'nearby_facilities': [],
+        });
+      }),
+    );
+
+    final result = await api.meeting(
+      startIds: ['101', '416', '805'],
+      criteria: 'time',
+      lang: 'ko',
+    );
+    expect(sent['/meeting-station'], {
+      'start_station_ids': ['101', '416', '805'],
+      'criteria': 'time',
+      'lang': 'ko',
+    });
+    expect(result.station.name, '모란');
+    expect(
+      [for (final p in result.participants) p.start.name],
+      ['신도림', '노원', '장지'],
+    );
+    expect(minutesOf(result.participants.first.travelSec), 76);
+    expect(result.totalTravelSec, 6250);
+
+    final text = await api.explainMeeting(
+      startIds: ['101', '416', '805'],
+      criteria: 'fairness',
+      lang: 'ko',
+      explainLang: 'vi',
+    );
+    expect(text, '모두의 이동 시간 합이 가장 작아요.');
+    expect(sent['/explain'], {
+      'type': 'meeting',
+      'request': {
+        'start_station_ids': ['101', '416', '805'],
+        'criteria': 'fairness',
+        'lang': 'ko',
+      },
+      'lang': 'vi',
+    });
+
+    expect((await api.stationById('207', 'ko'))?.lines, [2, 3]);
+    expect(await api.stationById('999', 'ko'), isNull);
   });
 
   test('서버 오류는 오류 코드로 바꾼다', () async {
