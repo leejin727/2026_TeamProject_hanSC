@@ -5,12 +5,11 @@ from google.genai import types
 
 from app.config import get_gemini_api_key, get_gemini_model
 
-# 명세: AI 설명 5초 이하. 우리 쪽 연결을 5초에 끊는다 (라이브러리 기본값은 재시도 안 함 → 전체 5초).
-TIMEOUT_MS = 5000
-# 라이브러리는 timeout 값을 X-Server-Timeout 헤더로 Gemini 서버에도 보내는데,
-# 서버는 10초 미만이면 400("Minimum allowed deadline is 10s")으로 모든 요청을 거절한다.
-# 헤더를 직접 넣어 두면 라이브러리가 덮어쓰지 않으므로, 서버에는 최소값 10초를 알려 준다.
-SERVER_DEADLINE_HEADER = {"X-Server-Timeout": "10"}
+# AI 설명 제한 12초 (팀 결정 2026-11-18). 처음 목표는 5초였지만, Gemini가 느린 때에는
+# 5~11초가 걸려 5초 제한으로는 설명이 거의 실패했다. 앱은 경로를 먼저 보여 주고 설명만 따로 기다린다.
+# 라이브러리 기본값은 재시도 안 함 → 전체 12초. 이 값은 Gemini 서버에도 전달되는데,
+# 서버는 10초 미만이면 400("Minimum allowed deadline is 10s")으로 거절하므로 10초 아래로 내리지 않는다.
+TIMEOUT_MS = 12_000
 
 
 class AIUnavailableError(Exception):
@@ -26,7 +25,7 @@ def _get_client() -> genai.Client:
     if _client is None:
         _client = genai.Client(
             api_key=get_gemini_api_key(),
-            http_options=types.HttpOptions(timeout=TIMEOUT_MS, headers=SERVER_DEADLINE_HEADER),
+            http_options=types.HttpOptions(timeout=TIMEOUT_MS),
         )
     return _client
 
@@ -44,7 +43,7 @@ def generate(system_prompt: str, user_prompt: str) -> str:
             config=types.GenerateContentConfig(
                 system_instruction=system_prompt,
                 temperature=0.3,  # 같은 입력이면 비슷한 문장이 나오도록 낮게
-                # 생각(thinking)을 짧게 해서 5초 안에 답하게 한다
+                # 생각(thinking)을 짧게 해서 빨리 답하게 한다
                 thinking_config=types.ThinkingConfig(thinking_level=types.ThinkingLevel.LOW),
             ),
         )
