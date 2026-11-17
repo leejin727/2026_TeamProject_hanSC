@@ -154,6 +154,53 @@ class RouteResult {
   final List<RouteTransfer> transfers;
 }
 
+/// 모임역 결과의 사람 한 명.
+class MeetingParticipant {
+  const MeetingParticipant({
+    required this.start,
+    required this.travelSec,
+    required this.transferCount,
+  });
+
+  factory MeetingParticipant.fromJson(Map<String, dynamic> json) =>
+      MeetingParticipant(
+        start: StationRef.fromJson(json['start'] as Map<String, dynamic>),
+        travelSec: json['travel_sec'] as int,
+        transferCount: json['transfer_count'] as int,
+      );
+
+  final StationRef start;
+  final int travelSec;
+  final int transferCount;
+}
+
+/// POST /meeting-station 응답 (api-spec.md 3장). 사람별 상세 경로(segments 등)는 아직 화면에서 쓰지 않아 읽지 않는다.
+class MeetingResult {
+  const MeetingResult({
+    required this.station,
+    required this.participants,
+    required this.totalTravelSec,
+    required this.maxTravelSec,
+  });
+
+  factory MeetingResult.fromJson(Map<String, dynamic> json) => MeetingResult(
+    station: StationRef.fromJson(json['station'] as Map<String, dynamic>),
+    participants: [
+      for (final p in json['participants'] as List)
+        MeetingParticipant.fromJson(p as Map<String, dynamic>),
+    ],
+    totalTravelSec: json['total_travel_sec'] as int,
+    maxTravelSec: json['max_travel_sec'] as int,
+  );
+
+  final StationRef station;
+
+  /// 요청한 출발역 순서 그대로
+  final List<MeetingParticipant> participants;
+  final int totalTravelSec;
+  final int maxTravelSec;
+}
+
 /// 초 → 분 (반올림). 서버 AI 설명과 같은 방식.
 int minutesOf(int seconds) => (seconds / 60).round();
 
@@ -223,6 +270,28 @@ class ApiClient {
     return RouteResult.fromJson(json);
   }
 
+  /// 역 ID로 역 정보(이름, 노선)를 찾는다. 역 목록은 한 번만 받아 둔 것을 쓴다.
+  Future<Station?> stationById(String id, String lang) async {
+    for (final station in await stations(lang)) {
+      if (station.id == id) return station;
+    }
+    return null;
+  }
+
+  /// POST /meeting-station. [criteria]는 'time'(최단시간), 'fairness'(공평성), 'transfers'(최소환승).
+  Future<MeetingResult> meeting({
+    required List<String> startIds,
+    required String criteria,
+    required String lang,
+  }) async {
+    final json = await _post('/meeting-station', {
+      'start_station_ids': startIds,
+      'criteria': criteria,
+      'lang': lang,
+    });
+    return MeetingResult.fromJson(json);
+  }
+
   /// POST /explain (type=route). 서버가 경로를 다시 계산해서 [explainLang]으로 설명한다.
   /// [lang]은 역 이름 언어(ko·en), [explainLang]은 설명 언어(ko, en, ja, zh-Hans, zh-Hant, vi).
   Future<String> explainRoute({
@@ -231,20 +300,35 @@ class ApiClient {
     required String criteria,
     required String lang,
     required String explainLang,
-  }) async {
+  }) => _explain('route', {
+    'start_station_id': startId,
+    'end_station_id': endId,
+    'criteria': criteria,
+    'lang': lang,
+  }, explainLang);
+
+  /// POST /explain (type=meeting). 서버가 모임역을 다시 계산해서 추천 이유를 설명한다.
+  Future<String> explainMeeting({
+    required List<String> startIds,
+    required String criteria,
+    required String lang,
+    required String explainLang,
+  }) => _explain('meeting', {
+    'start_station_ids': startIds,
+    'criteria': criteria,
+    'lang': lang,
+  }, explainLang);
+
+  /// [request]에는 /routes 또는 /meeting-station에 보내는 요청 본문을 그대로 넣는다 (api-spec.md 4장).
+  Future<String> _explain(
+    String type,
+    Map<String, dynamic> request,
+    String explainLang,
+  ) async {
     final json = await _post(
       '/explain',
-      {
-        'type': 'route',
-        'request': {
-          'start_station_id': startId,
-          'end_station_id': endId,
-          'criteria': criteria,
-          'lang': lang,
-        },
-        'lang': explainLang,
-      },
-      // 서버가 Gemini를 5초에 끊으므로 그보다 넉넉하게 기다린다
+      {'type': type, 'request': request, 'lang': explainLang},
+      // 서버가 Gemini를 12초에 끊으므로 그보다 조금 더 기다린다
       timeout: const Duration(seconds: 15),
     );
     return json['explanation'] as String;
