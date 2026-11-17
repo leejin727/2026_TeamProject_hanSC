@@ -1,6 +1,6 @@
 # SubFit 서버 API 명세 (초안)
 
-> 작성 2026-11-04 · 구현됨: `GET /stations`, `POST /routes` (2026-11-11), `POST /explain`의 `type: "route"` (2026-11-16), `POST /meeting-station` (2026-11-17). `/explain`의 `type: "meeting"`은 아직 `501 NOT_IMPLEMENTED`. 이 문서를 보고 앱에서 가짜 데이터(mock)를 만들 수 있게 하는 것이 목표.
+> 작성 2026-11-04 · 구현됨: `GET /stations`, `POST /routes` (2026-11-11), `POST /explain`의 `type: "route"` (2026-11-16), `POST /meeting-station` (2026-11-17), `POST /explain`의 `type: "meeting"` (2026-11-17). 이 문서를 보고 앱에서 가짜 데이터(mock)를 만들 수 있게 하는 것이 목표.
 > 데이터 규칙은 `data/extra/ASSUMPTIONS.md`가 우선이다. **(가안)** 표시는 팀 결정 전 임시 값이며, 끝의 [논의 필요](#7-논의-필요)에서 확정한다.
 > 예시 값은 모두 실제 데이터(`stations.xlsx` + `data/extra/*.csv`)로 계산한 값이다.
 
@@ -242,7 +242,8 @@ GET /stations?lang=en
 | `cached` | 저장해 둔 설명을 다시 쓴 경우 `true`. 앱 화면에는 쓰지 않아도 된다 |
 
 - 역 이름은 `request.lang`(ko·en)의 이름 그대로 쓴다. 설명 언어가 `ja`, `vi` 등이어도 AI가 역 이름을 옮겨 적지 않는다.
-- `type: "meeting"`이면 `request`에 `/meeting-station` 요청 본문을 넣는다. **아직 구현 전이라 `501 NOT_IMPLEMENTED`**를 준다.
+- `type: "meeting"`이면 `request`에 `/meeting-station` 요청 본문을 넣는다. `explanation`에는 추천 이유가 들어간다. 예: `{"type": "meeting", "request": {"start_station_ids": ["101", "416", "805"], "criteria": "time", "lang": "en"}, "lang": "en"}`
+- 모임역 설명에는 기준별 고르는 방법(ASSUMPTIONS.md), 참가자별 이동 시간·환승 횟수, 합계·최대 시간만 넘긴다. 다른 역과의 비교, 비용, 주변 시설은 넘기지 않는다. 출발역 순서가 다르면 다른 요청으로 보고 설명을 따로 저장한다.
 
 서버 동작 (AGENTS.md 설계 원칙):
 - Gemini에는 서버가 다시 계산한 값(역 이름, 노선, 구간별·전체 시간, 환승 횟수)만 넘긴다. 출발·도착 시각, 비용, 방면은 넘기지 않는다 (방면은 앱이 `direction`으로 따로 보여 준다). 프롬프트에 "주어진 데이터 외의 정보(실제 서울 지하철 노선, 주변 시설 등)는 말하지 말 것"을 넣는다.
@@ -256,7 +257,7 @@ GET /stations?lang=en
 |---|---|
 | `type`이 `route`·`meeting`이 아님, `lang`이 위 6개가 아님 | 400 `VALIDATION_ERROR` `{"field": "type" 또는 "lang", "supported": [...]}` |
 | `request` 안의 값이 틀림 (예: `criteria: "fastest"`) | 400 `VALIDATION_ERROR` `{"field": "request.criteria"}` |
-| `request`의 역이 없음, `request.lang`이 ko·en이 아님 | `/routes`와 같음 (400 `STATION_NOT_FOUND`, 400 `UNSUPPORTED_LANGUAGE`) |
+| `request`의 역이 없음, `request.lang`이 ko·en이 아님, 모임역 인원 수가 틀림 | `/routes`·`/meeting-station`과 같음 (400 `STATION_NOT_FOUND`, 400 `UNSUPPORTED_LANGUAGE`, 400 `INVALID_PARTICIPANT_COUNT`) |
 | `type`, `request`, `lang` 중 빠진 값 | 422 `INVALID_REQUEST` |
 
 ---
@@ -285,15 +286,14 @@ GET /stations?lang=en
 |---|---|---|---|---|
 | 400 | `STATION_NOT_FOUND` | 없는 역 ID | `/routes`, `/meeting-station`, `/explain` | `{"station_id": "999"}` |
 | 400 | `SAME_STATION` | 출발역 = 도착역 | `/routes` | `{"station_id": "101"}` |
-| 400 | `INVALID_PARTICIPANT_COUNT` | 출발역이 2개 미만이거나 4개 초과 | `/meeting-station` | `{"count": 5, "min": 2, "max": 4}` |
+| 400 | `INVALID_PARTICIPANT_COUNT` | 출발역이 2개 미만이거나 4개 초과 | `/meeting-station`, `/explain` | `{"count": 5, "min": 2, "max": 4}` |
 | 400 | `UNSUPPORTED_LANGUAGE` | 역 이름 `lang`이 ko·en이 아님 **(가안, 논의 필요 9)** | 전체 (`/explain`은 `request.lang`) | `{"lang": "ja", "supported": ["ko", "en"]}` |
 | 400 | `VALIDATION_ERROR` | `/explain`의 `type`·`lang`·`request` 값이 틀림 (4장) | `/explain` | `{"field": "lang", "supported": [...]}` |
 | 404 | `NOT_FOUND` | 없는 주소로 요청 (예: `GET /route`) | 전체 | 없음 |
 | 404 | `NO_ROUTE` | 두 역을 잇는 경로가 없음. 지금 데이터는 모든 역이 이어져 있어 나지 않는다 | `/routes` | `{"start_station_id": "101", "end_station_id": "207"}` |
-| 404 | `NO_MEETING_STATION` | 모든 참여자가 갈 수 있는 역이 없음. 지금 데이터에서는 나지 않는다 | `/meeting-station` | 없음 |
+| 404 | `NO_MEETING_STATION` | 모든 참여자가 갈 수 있는 역이 없음. 지금 데이터에서는 나지 않는다 | `/meeting-station`, `/explain` | 없음 |
 | 405 | `METHOD_NOT_ALLOWED` | 주소는 있지만 허용하지 않는 방식 (예: `GET /routes`) | 전체 | 없음 |
 | 422 | `INVALID_REQUEST` | 필수 값 누락, 타입 오류(예: 숫자 역 ID), `criteria`의 잘못된 값, JSON 형식 오류 | 전체 | `{"field": "criteria"}` |
-| 501 | `NOT_IMPLEMENTED` | 아직 만들지 않은 기능 | `/explain` (`type: "meeting"`) | 없음 |
 | 503 | `AI_UNAVAILABLE` | Gemini 호출 실패·시간 초과, 서버에 API 키 없음 | `/explain` | 없음 |
 | 500 | `INTERNAL_ERROR` | 그 밖의 서버 오류 | 전체 | 없음 |
 

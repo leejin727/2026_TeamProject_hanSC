@@ -5,9 +5,10 @@ import json
 import logging
 
 import psycopg
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 
 from app.ai import client, prompts
+from app.api.meeting import MeetingRequest, compute_meeting
 from app.api.routes import RouteRequest, compute_route
 from app.config import MissingSettingError
 from app.db.connection import connect
@@ -16,7 +17,12 @@ from app.routing.graph_builder import Network
 
 logger = logging.getLogger("subfit")
 
-EXPLAIN_TYPES = ("route", "meeting")
+# type별로 (요청 모양, 다시 계산하는 함수, 프롬프트 만드는 함수). 계산 함수는 해당 API와 같은 것을 쓴다.
+_HANDLERS = {
+    "route": (RouteRequest, compute_route, prompts.route_prompt),        # POST /routes
+    "meeting": (MeetingRequest, compute_meeting, prompts.meeting_prompt),  # POST /meeting-station
+}
+EXPLAIN_TYPES = tuple(_HANDLERS)  # route, meeting
 EXPLAIN_LANGS = tuple(prompts.LANGUAGES)  # ko, en, ja, zh-Hans, zh-Hant, vi
 
 
@@ -27,22 +33,19 @@ def explain(network: Network, type_: str, request: dict, lang: str) -> dict:
     if lang not in EXPLAIN_LANGS:
         raise AppError(400, "VALIDATION_ERROR", f"지원하지 않는 설명 언어입니다: {lang}",
                        {"field": "lang", "supported": list(EXPLAIN_LANGS)})
-    if type_ == "meeting":
-        # TODO(S09a): 모임역 알고리즘(find_meeting_station)이 생기면 route와 같은 순서로
-        # 서버에서 다시 계산 → 캐시 → prompts.meeting_prompt로 Gemini 호출 → 저장한다.
-        raise AppError(501, "NOT_IMPLEMENTED", "모임역 설명은 아직 준비 중입니다")
+    request_model, compute, make_prompt = _HANDLERS[type_]
 
-    route_request = _parse_route_request(request)
-    # 앱이 보낸 결과는 믿지 않는다. 같은 요청으로 서버가 경로를 다시 계산한다.
-    # (없는 역 → 400 STATION_NOT_FOUND 등 /routes와 같은 검사도 여기서 한다)
-    route = compute_route(network, route_request)
+    body = _parse_request(request_model, request)
+    # 앱이 보낸 결과는 믿지 않는다. 같은 요청으로 서버가 경로·모임역을 다시 계산한다.
+    # (없는 역 → 400 STATION_NOT_FOUND 등 /routes·/meeting-station과 같은 검사도 여기서 한다)
+    result = compute(network, body)
 
-    key = cache_key(type_, _normalize(route_request), lang)
+    key = cache_key(type_, _normalize(body), lang)
     cached = load_cached(key, lang)
     if cached is not None:
         return {"explanation": cached, "cached": True}
 
-    system_prompt, user_prompt = prompts.route_prompt(route, lang)
+    system_prompt, user_prompt = make_prompt(result, lang)
     try:
         text = client.generate(system_prompt, user_prompt)
     except (MissingSettingError, client.AIUnavailableError) as e:
@@ -53,9 +56,9 @@ def explain(network: Network, type_: str, request: dict, lang: str) -> dict:
     return {"explanation": text, "cached": False}
 
 
-def _parse_route_request(request: dict) -> RouteRequest:
+def _parse_request(request_model: type[BaseModel], request: dict) -> BaseModel:
     try:
-        return RouteRequest.model_validate(request)
+        return request_model.model_validate(request)
     except ValidationError as e:
         first = e.errors()[0]
         field = "request." + ".".join(str(part) for part in first["loc"])
@@ -63,12 +66,13 @@ def _parse_route_request(request: dict) -> RouteRequest:
                        {"field": field}) from e
 
 
-def _normalize(route_request: RouteRequest) -> str:
+def _normalize(body: BaseModel) -> str:
     """캐시 키용으로 요청을 항상 같은 글자로 바꾼다 (키 순서 고정, 공백 없음).
 
-    departure_time은 설명에 쓰지 않으므로 뺀다 → 출발 시각만 다른 같은 경로는 설명을 같이 쓴다.
+    경로의 departure_time은 설명에 쓰지 않으므로 뺀다 → 출발 시각만 다른 같은 경로는 설명을 같이 쓴다.
+    모임역 출발역은 순서를 그대로 둔다 (설명에서 참여자를 요청 순서대로 말하기 때문).
     """
-    data = route_request.model_dump(exclude={"departure_time"})
+    data = body.model_dump(exclude={"departure_time"})
     return json.dumps(data, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
 
 
