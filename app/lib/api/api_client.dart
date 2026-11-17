@@ -1,0 +1,306 @@
+// SubFit 서버(FastAPI) 호출. API 모양은 docs/api-spec.md를 따른다.
+//
+// 앱은 우리 서버만 부른다. Gemini 키 같은 비밀 값은 앱에 넣지 않는다 (AGENTS.md 보안).
+import 'dart:async';
+import 'dart:convert';
+
+import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
+
+/// 서버 주소.
+/// - 안드로이드 에뮬레이터: 10.0.2.2 = 에뮬레이터를 실행한 내 컴퓨터
+/// - iPhone 시뮬레이터 등: localhost
+/// - 실제 휴대폰: flutter run --dart-define=API_BASE_URL=http://내컴퓨터IP:8000
+String get defaultApiBaseUrl {
+  const override = String.fromEnvironment('API_BASE_URL');
+  if (override.isNotEmpty) return override;
+  if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+    return 'http://10.0.2.2:8000';
+  }
+  return 'http://localhost:8000';
+}
+
+/// 서버 오류. [code]는 api-spec.md 5장의 오류 코드이거나, 서버에 닿지 못했을 때 'NETWORK'.
+class ApiException implements Exception {
+  ApiException(this.code, this.message);
+
+  final String code;
+  final String message;
+
+  @override
+  String toString() => 'ApiException($code): $message';
+}
+
+/// 역 객체 {"id", "name"}. name은 요청한 언어(ko·en)의 이름.
+class StationRef {
+  const StationRef(this.id, this.name);
+
+  factory StationRef.fromJson(Map<String, dynamic> json) =>
+      StationRef(json['id'] as String, json['name'] as String);
+
+  final String id;
+  final String name;
+}
+
+/// GET /stations의 역 하나.
+class Station {
+  const Station(this.id, this.name, this.lines);
+
+  factory Station.fromJson(Map<String, dynamic> json) => Station(
+    json['id'] as String,
+    json['name'] as String,
+    (json['lines'] as List).cast<int>(),
+  );
+
+  final String id;
+  final String name;
+  final List<int> lines;
+}
+
+/// 한 노선을 이어서 탄 구간.
+class RouteSegment {
+  const RouteSegment({
+    required this.line,
+    required this.board,
+    required this.alight,
+    required this.direction,
+    required this.stations,
+    required this.rideSec,
+  });
+
+  factory RouteSegment.fromJson(Map<String, dynamic> json) => RouteSegment(
+    line: json['line'] as int,
+    board: StationRef.fromJson(json['board'] as Map<String, dynamic>),
+    alight: StationRef.fromJson(json['alight'] as Map<String, dynamic>),
+    direction: json['direction'] == null
+        ? null
+        : StationRef.fromJson(json['direction'] as Map<String, dynamic>),
+    stations: [
+      for (final s in json['stations'] as List)
+        StationRef.fromJson(s as Map<String, dynamic>),
+    ],
+    rideSec: json['ride_sec'] as int,
+  );
+
+  final int line;
+  final StationRef board;
+  final StationRef alight;
+
+  /// "○○ 방면"의 ○○ = 탑승 직후 다음 역 (ASSUMPTIONS.md 방면 안내 확정 사항)
+  final StationRef? direction;
+
+  /// 탑승역 ~ 하차역 (양 끝 포함)
+  final List<StationRef> stations;
+  final int rideSec;
+
+  /// 이동하는 역 수 (탑승역 제외)
+  int get stops => stations.length - 1;
+}
+
+class RouteTransfer {
+  const RouteTransfer({
+    required this.station,
+    required this.fromLine,
+    required this.toLine,
+    required this.sec,
+  });
+
+  factory RouteTransfer.fromJson(Map<String, dynamic> json) => RouteTransfer(
+    station: StationRef.fromJson(json['station'] as Map<String, dynamic>),
+    fromLine: json['from_line'] as int,
+    toLine: json['to_line'] as int,
+    sec: json['sec'] as int,
+  );
+
+  final StationRef station;
+  final int fromLine;
+  final int toLine;
+  final int sec;
+}
+
+/// POST /routes 응답 (api-spec.md 2장).
+class RouteResult {
+  const RouteResult({
+    required this.start,
+    required this.end,
+    required this.totalSec,
+    required this.transferCount,
+    required this.segments,
+    required this.transfers,
+  });
+
+  factory RouteResult.fromJson(Map<String, dynamic> json) => RouteResult(
+    start: StationRef.fromJson(json['start'] as Map<String, dynamic>),
+    end: StationRef.fromJson(json['end'] as Map<String, dynamic>),
+    totalSec: json['total_sec'] as int,
+    transferCount: json['transfer_count'] as int,
+    segments: [
+      for (final s in json['segments'] as List)
+        RouteSegment.fromJson(s as Map<String, dynamic>),
+    ],
+    transfers: [
+      for (final t in json['transfers'] as List)
+        RouteTransfer.fromJson(t as Map<String, dynamic>),
+    ],
+  );
+
+  final StationRef start;
+  final StationRef end;
+  final int totalSec;
+  final int transferCount;
+  final List<RouteSegment> segments;
+
+  /// transfers[i]는 segments[i]와 segments[i + 1] 사이의 환승
+  final List<RouteTransfer> transfers;
+}
+
+/// 초 → 분 (반올림). 서버 AI 설명과 같은 방식.
+int minutesOf(int seconds) => (seconds / 60).round();
+
+class ApiClient {
+  ApiClient({http.Client? client, String? baseUrl})
+    : _client = client ?? http.Client(),
+      _baseUrl = baseUrl ?? defaultApiBaseUrl;
+
+  final http.Client _client;
+  final String _baseUrl;
+
+  /// 역 목록은 바뀌지 않으므로 언어별로 한 번만 받아 둔다.
+  final Map<String, Future<List<Station>>> _stations = {};
+
+  Future<List<Station>> stations(String lang) {
+    return _stations[lang] ??= _get('/stations?lang=$lang')
+        .then(
+          (json) => [
+            for (final s in json['stations'] as List)
+              Station.fromJson(s as Map<String, dynamic>),
+          ],
+        )
+        .catchError((Object error) {
+          _stations.remove(lang); // 실패한 결과는 저장하지 않는다 (다시 시도할 수 있게)
+          throw error;
+        });
+  }
+
+  /// 사용자가 입력한 역 이름 → 역 ID. 못 찾으면 null.
+  /// '신도림', '신도림역', 'Sindorim', 'sindorim', '101' 모두 찾는다.
+  Future<String?> findStationId(String input) async {
+    final query = input.trim();
+    final all = [...await stations('ko'), ...await stations('en')];
+    for (final station in all) {
+      if (station.id == query || _sameName(station.name, query)) {
+        return station.id;
+      }
+    }
+    return null;
+  }
+
+  static bool _sameName(String name, String query) {
+    String normalize(String s) {
+      final compact = s.replaceAll(' ', '').toLowerCase();
+      // '서울역'처럼 이름에 '역'이 들어 있어도, 사용자가 '역'을 붙이든 빼든 찾는다
+      return compact.endsWith('역')
+          ? compact.substring(0, compact.length - 1)
+          : compact;
+    }
+
+    return normalize(name) == normalize(query);
+  }
+
+  /// POST /routes. [criteria]는 'time'(최단시간) 또는 'transfers'(최소환승).
+  Future<RouteResult> route({
+    required String startId,
+    required String endId,
+    required String criteria,
+    required String lang,
+  }) async {
+    final json = await _post('/routes', {
+      'start_station_id': startId,
+      'end_station_id': endId,
+      'criteria': criteria,
+      'lang': lang,
+    });
+    return RouteResult.fromJson(json);
+  }
+
+  /// POST /explain (type=route). 서버가 경로를 다시 계산해서 [explainLang]으로 설명한다.
+  /// [lang]은 역 이름 언어(ko·en), [explainLang]은 설명 언어(ko, en, ja, zh-Hans, zh-Hant, vi).
+  Future<String> explainRoute({
+    required String startId,
+    required String endId,
+    required String criteria,
+    required String lang,
+    required String explainLang,
+  }) async {
+    final json = await _post(
+      '/explain',
+      {
+        'type': 'route',
+        'request': {
+          'start_station_id': startId,
+          'end_station_id': endId,
+          'criteria': criteria,
+          'lang': lang,
+        },
+        'lang': explainLang,
+      },
+      // 서버가 Gemini를 5초에 끊으므로 그보다 넉넉하게 기다린다
+      timeout: const Duration(seconds: 15),
+    );
+    return json['explanation'] as String;
+  }
+
+  Future<Map<String, dynamic>> _get(String path) =>
+      _send(() => _client.get(Uri.parse('$_baseUrl$path')));
+
+  Future<Map<String, dynamic>> _post(
+    String path,
+    Map<String, dynamic> body, {
+    Duration timeout = const Duration(seconds: 10),
+  }) => _send(
+    () => _client.post(
+      Uri.parse('$_baseUrl$path'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode(body),
+    ),
+    timeout: timeout,
+  );
+
+  Future<Map<String, dynamic>> _send(
+    Future<http.Response> Function() request, {
+    Duration timeout = const Duration(seconds: 10),
+  }) async {
+    final http.Response response;
+    try {
+      response = await request().timeout(timeout);
+    } on TimeoutException {
+      throw ApiException('NETWORK', '서버 응답이 너무 늦습니다.');
+    } on Exception {
+      // 서버가 꺼져 있음, 주소가 틀림 등 (http.ClientException, SocketException)
+      throw ApiException('NETWORK', '서버에 연결할 수 없습니다.');
+    }
+
+    // 서버가 charset 없이 JSON을 보내므로 직접 UTF-8로 읽는다 (한글이 깨지지 않게)
+    final Object? json;
+    try {
+      json = jsonDecode(utf8.decode(response.bodyBytes));
+    } on FormatException {
+      throw ApiException('INTERNAL_ERROR', '서버 응답을 읽을 수 없습니다.');
+    }
+    if (response.statusCode == 200 && json is Map<String, dynamic>) {
+      return json;
+    }
+    // 오류 모양: {"error": {"code", "message", "details"}} (api-spec.md 5장)
+    final error = json is Map<String, dynamic> ? json['error'] : null;
+    if (error is Map<String, dynamic>) {
+      throw ApiException(
+        error['code'] as String? ?? 'INTERNAL_ERROR',
+        error['message'] as String? ?? '서버 오류',
+      );
+    }
+    throw ApiException('INTERNAL_ERROR', '서버 오류 (${response.statusCode})');
+  }
+}
+
+/// 앱 전체가 함께 쓰는 서버 연결 (역 목록을 한 번만 받기 위해).
+final apiClient = ApiClient();

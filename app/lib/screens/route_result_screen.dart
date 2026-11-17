@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 
+import '../api/api_client.dart';
 import '../data/favorite_routes.dart';
+import '../data/subway_map_data.dart';
+import '../widgets/language_selector.dart';
 import 'favorites_screen.dart';
 import 'subway_map_screen.dart';
 
@@ -9,9 +12,16 @@ const _textColor = Color(0xFF293F64);
 const _muted = Color(0xFF8392AA);
 const _lightBackground = Color(0xFFF0F5F8);
 const _border = Color(0xFFD2DAE6);
-const _line4 = Color(0xFF00A9D6);
-const _line2 = Color(0xFF00AD50);
 const _transferColor = Color(0xFF9CA8BA);
+
+/// 노선 색. 노선도 화면과 같은 색을 쓴다.
+Color _lineColor(int line) {
+  try {
+    return SubwayMapData.colorForLine(line);
+  } on ArgumentError {
+    return _muted;
+  }
+}
 
 class RouteResultScreen extends StatefulWidget {
   const RouteResultScreen({
@@ -20,6 +30,7 @@ class RouteResultScreen extends StatefulWidget {
     required this.arrival,
   });
 
+  /// 사용자가 입력한 역 이름 (예: '신도림', 'Sindorim')
   final String departure;
   final String arrival;
 
@@ -28,11 +39,112 @@ class RouteResultScreen extends StatefulWidget {
 }
 
 class _RouteResultScreenState extends State<RouteResultScreen> {
+  // 탭 순서대로 서버의 criteria 값 (api-spec.md 2장)
+  static const _criteriaValues = ['time', 'transfers'];
+
   int _selectedCriteria = 0;
 
-  // 화면 구현용 예시 데이터입니다.
-  // 사용자가 입력한 역에 따라 계산한 결과가 아닙니다.
-  static const _exampleStations = ['서울역', '회현역', '명동역', '충무로역', '동대문역사문화공원역'];
+  /// 입력한 역 이름 → (출발역 ID, 도착역 ID)
+  late Future<(String, String)> _stationIds;
+
+  // 기준(탭)별 결과. 탭을 다시 눌러도 서버를 또 부르지 않는다.
+  final Map<String, Future<RouteResult>> _routes = {};
+  final Map<String, Future<String>> _explanations = {};
+
+  String get _criteria => _criteriaValues[_selectedCriteria];
+
+  // 역 이름 데이터는 한국어·영어만 있다. 앱 언어가 한국어가 아니면 영어 이름을 쓴다.
+  String get _nameLang =>
+      LanguageSettings.selected.value.code == 'ko' ? 'ko' : 'en';
+
+  // AI 설명은 앱에서 고른 언어 그대로 (ko, en, ja, zh-Hans, zh-Hant, vi)
+  String get _explainLang => LanguageSettings.selected.value.code;
+
+  @override
+  void initState() {
+    super.initState();
+    _stationIds = _findStationIds();
+  }
+
+  Future<(String, String)> _findStationIds() async {
+    final start = await apiClient.findStationId(widget.departure);
+    if (start == null) {
+      throw ApiException(
+        'STATION_NOT_FOUND',
+        "'${widget.departure}' 역을 찾을 수 없습니다.",
+      );
+    }
+    final end = await apiClient.findStationId(widget.arrival);
+    if (end == null) {
+      throw ApiException(
+        'STATION_NOT_FOUND',
+        "'${widget.arrival}' 역을 찾을 수 없습니다.",
+      );
+    }
+    return (start, end);
+  }
+
+  Future<RouteResult> _routeFor(String criteria) {
+    return _routes[criteria] ??= _stationIds.then(
+      (ids) => apiClient.route(
+        startId: ids.$1,
+        endId: ids.$2,
+        criteria: criteria,
+        lang: _nameLang,
+      ),
+    );
+  }
+
+  // 경로 계산과 AI 설명은 따로 부른다. 설명이 실패해도 경로는 그대로 보인다.
+  Future<String> _explanationFor(String criteria) {
+    return _explanations[criteria] ??= _stationIds.then(
+      (ids) => apiClient.explainRoute(
+        startId: ids.$1,
+        endId: ids.$2,
+        criteria: criteria,
+        lang: _nameLang,
+        explainLang: _explainLang,
+      ),
+    );
+  }
+
+  void _retryRoute() {
+    setState(() {
+      _stationIds = _findStationIds();
+      _routes.clear();
+      _explanations.clear();
+    });
+  }
+
+  void _retryExplanation() {
+    setState(() {
+      _explanations.remove(_criteria);
+    });
+  }
+
+  String _routeErrorText(Object? error) {
+    if (error is ApiException) {
+      switch (error.code) {
+        case 'NETWORK':
+          return '서버에 연결할 수 없습니다.\n서버가 켜져 있는지 확인해 주세요.';
+        case 'SAME_STATION':
+          return '출발역과 도착역이 같습니다.';
+        case 'NO_ROUTE':
+          return '두 역을 잇는 경로가 없습니다.';
+        case 'STATION_NOT_FOUND':
+          return error.message;
+      }
+      return error.message;
+    }
+    return '알 수 없는 오류가 발생했습니다.';
+  }
+
+  String _explanationErrorText(Object? error) {
+    if (error is ApiException && error.code == 'NETWORK') {
+      return '서버에 연결할 수 없습니다.';
+    }
+    return '지금은 AI 설명을 만들 수 없습니다. 잠시 후 다시 시도해 주세요.';
+  }
 
   void _showMessage(String message) {
     final messenger = ScaffoldMessenger.of(context);
@@ -44,7 +156,21 @@ class _RouteResultScreenState extends State<RouteResultScreen> {
     Navigator.of(context).popUntil((route) => route.isFirst);
   }
 
-  void _showStations() {
+  /// 지나가는 모든 역 (환승역은 한 번만)과 그때 탄 노선
+  List<(StationRef, int)> _allStations(RouteResult route) {
+    final stations = <(StationRef, int)>[];
+    for (final segment in route.segments) {
+      final skipFirst = stations.isNotEmpty; // 환승역은 앞 구간에서 이미 넣었다
+      for (final station in segment.stations.skip(skipFirst ? 1 : 0)) {
+        stations.add((station, segment.line));
+      }
+    }
+    return stations;
+  }
+
+  void _showStations(RouteResult route) {
+    final stations = _allStations(route);
+
     showModalBottomSheet<void>(
       context: context,
       backgroundColor: Colors.white,
@@ -68,15 +194,18 @@ class _RouteResultScreenState extends State<RouteResultScreen> {
                     ),
                   ),
                   const SizedBox(height: 10),
-                  const Text(
-                    '목록 UI 확인용 일부 예시입니다.\n'
-                    '검색한 경로의 전체 정차역은 데이터 연동 후 제공됩니다.',
-                    style: TextStyle(color: _muted, fontSize: 13, height: 1.5),
+                  Text(
+                    '출발역부터 도착역까지 ${stations.length}개 역',
+                    style: const TextStyle(
+                      color: _muted,
+                      fontSize: 13,
+                      height: 1.5,
+                    ),
                   ),
                   const SizedBox(height: 16),
                   Expanded(
                     child: ListView.separated(
-                      itemCount: _exampleStations.length,
+                      itemCount: stations.length,
                       separatorBuilder: (context, index) {
                         return const Divider(
                           height: 1,
@@ -84,18 +213,26 @@ class _RouteResultScreenState extends State<RouteResultScreen> {
                         );
                       },
                       itemBuilder: (context, index) {
+                        final (station, line) = stations[index];
                         return ListTile(
                           contentPadding: EdgeInsets.zero,
-                          leading: const Icon(
+                          leading: Icon(
                             Icons.circle_outlined,
-                            color: _line4,
+                            color: _lineColor(line),
                             size: 20,
                           ),
                           title: Text(
-                            _exampleStations[index],
+                            station.name,
                             style: const TextStyle(
                               color: _textColor,
                               fontSize: 15,
+                            ),
+                          ),
+                          trailing: Text(
+                            '$line호선',
+                            style: const TextStyle(
+                              color: _muted,
+                              fontSize: 12,
                             ),
                           ),
                         );
@@ -134,58 +271,35 @@ class _RouteResultScreenState extends State<RouteResultScreen> {
               children: [
                 _buildHeader(),
                 Expanded(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.fromLTRB(24, 20, 24, 28),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        _buildRouteTitle(),
-                        const SizedBox(height: 22),
-                        _buildCriteriaTabs(),
-                        const SizedBox(height: 16),
-                        _buildSummaryCard(),
-                        const SizedBox(height: 12),
-                        const Text(
-                          '예시 화면 · 아래 시간과 상세 경로는 실제 검색 결과가 '
-                          '아니며, 기준을 바꿔도 동일한 예시를 표시합니다.',
-                          style: TextStyle(
-                            color: _muted,
-                            fontSize: 11,
-                            height: 1.5,
-                          ),
+                  child: FutureBuilder<RouteResult>(
+                    future: _routeFor(_criteria),
+                    builder: (context, snapshot) {
+                      // 탭을 바꾸면 새 결과가 올 때까지 로딩을 보여 준다
+                      final done =
+                          snapshot.connectionState == ConnectionState.done;
+                      final route = done && !snapshot.hasError
+                          ? snapshot.data
+                          : null;
+
+                      return SingleChildScrollView(
+                        padding: const EdgeInsets.fromLTRB(24, 20, 24, 28),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            _buildRouteTitle(route),
+                            const SizedBox(height: 22),
+                            _buildCriteriaTabs(),
+                            const SizedBox(height: 16),
+                            if (!done)
+                              _buildLoading()
+                            else if (snapshot.hasError)
+                              _buildError(snapshot.error)
+                            else
+                              ..._buildRouteDetails(route!),
+                          ],
                         ),
-                        const SizedBox(height: 22),
-                        const Text(
-                          '상세 경로',
-                          style: TextStyle(
-                            color: _textColor,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        _buildTimeline(),
-                        const SizedBox(height: 20),
-                        OutlinedButton(
-                          onPressed: _showStations,
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: _textColor,
-                            side: const BorderSide(color: Color(0xFF9AAAC1)),
-                            minimumSize: const Size(double.infinity, 54),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
-                          child: const Text(
-                            '정차역 모두 보기',
-                            style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
+                      );
+                    },
                   ),
                 ),
                 _buildBottomNavigation(),
@@ -193,6 +307,82 @@ class _RouteResultScreenState extends State<RouteResultScreen> {
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  List<Widget> _buildRouteDetails(RouteResult route) {
+    return [
+      _buildSummaryCard(route),
+      const SizedBox(height: 16),
+      _buildExplanationCard(),
+      const SizedBox(height: 22),
+      const Text(
+        '상세 경로',
+        style: TextStyle(
+          color: _textColor,
+          fontSize: 16,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+      const SizedBox(height: 16),
+      _buildTimeline(route),
+      const SizedBox(height: 20),
+      OutlinedButton(
+        onPressed: () => _showStations(route),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: _textColor,
+          side: const BorderSide(color: Color(0xFF9AAAC1)),
+          minimumSize: const Size(double.infinity, 54),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+        child: const Text(
+          '정차역 모두 보기',
+          style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+        ),
+      ),
+    ];
+  }
+
+  Widget _buildLoading() {
+    return const Padding(
+      padding: EdgeInsets.symmetric(vertical: 48),
+      child: Center(child: CircularProgressIndicator()),
+    );
+  }
+
+  Widget _buildError(Object? error) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: _lightBackground,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        children: [
+          const Icon(Icons.error_outline, color: _muted, size: 32),
+          const SizedBox(height: 10),
+          Text(
+            _routeErrorText(error),
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: _textColor,
+              fontSize: 14,
+              height: 1.5,
+            ),
+          ),
+          const SizedBox(height: 14),
+          OutlinedButton(
+            onPressed: _retryRoute,
+            style: OutlinedButton.styleFrom(
+              foregroundColor: _navy,
+              side: const BorderSide(color: _border),
+            ),
+            child: const Text('다시 시도'),
+          ),
+        ],
       ),
     );
   }
@@ -250,11 +440,16 @@ class _RouteResultScreenState extends State<RouteResultScreen> {
     );
   }
 
-  Widget _buildRouteTitle() {
+  /// [route]가 없으면(불러오는 중·오류) 입력한 이름을 보여 준다.
+  Widget _buildRouteTitle(RouteResult? route) {
+    final title = route == null
+        ? '${widget.departure} → ${widget.arrival}'
+        : '${route.start.name} → ${route.end.name}';
+
     return Column(
       children: [
         Text(
-          '${widget.departure} → ${widget.arrival}',
+          title,
           textAlign: TextAlign.center,
           style: const TextStyle(
             color: _textColor,
@@ -263,11 +458,13 @@ class _RouteResultScreenState extends State<RouteResultScreen> {
             height: 1.4,
           ),
         ),
-        const SizedBox(height: 8),
-        const Text(
-          '예상 소요 31분 · 환승 1회 (예시)',
-          style: TextStyle(color: _muted, fontSize: 12),
-        ),
+        if (route != null) ...[
+          const SizedBox(height: 8),
+          Text(
+            '예상 소요 ${minutesOf(route.totalSec)}분 · 환승 ${route.transferCount}회',
+            style: const TextStyle(color: _muted, fontSize: 12),
+          ),
+        ],
       ],
     );
   }
@@ -317,7 +514,31 @@ class _RouteResultScreenState extends State<RouteResultScreen> {
     );
   }
 
-  Widget _buildSummaryCard() {
+  /// 탄 순서대로 (색, 걸린 초, 설명): 노선 구간 → 환승 → 노선 구간 …
+  List<(Color, int, String)> _timeParts(RouteResult route) {
+    final parts = <(Color, int, String)>[];
+    for (var i = 0; i < route.segments.length; i++) {
+      final segment = route.segments[i];
+      parts.add((
+        _lineColor(segment.line),
+        segment.rideSec,
+        '${segment.line}호선 ${minutesOf(segment.rideSec)}분',
+      ));
+      if (i < route.transfers.length) {
+        final transfer = route.transfers[i];
+        parts.add((
+          _transferColor,
+          transfer.sec,
+          '환승 ${minutesOf(transfer.sec)}분',
+        ));
+      }
+    }
+    return parts;
+  }
+
+  Widget _buildSummaryCard(RouteResult route) {
+    final parts = _timeParts(route);
+
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
@@ -331,23 +552,31 @@ class _RouteResultScreenState extends State<RouteResultScreen> {
             child: Row(
               children: [
                 Expanded(
-                  child: _buildMetric(label: '총 소요시간', value: '31', unit: '분'),
+                  child: _buildMetric(
+                    label: '총 소요시간',
+                    value: '${minutesOf(route.totalSec)}',
+                    unit: '분',
+                  ),
                 ),
                 const VerticalDivider(width: 28, thickness: 1, color: _border),
                 Expanded(
-                  child: _buildMetric(label: '환승', value: '1', unit: '회'),
+                  child: _buildMetric(
+                    label: '환승',
+                    value: '${route.transferCount}',
+                    unit: '회',
+                  ),
                 ),
               ],
             ),
           ),
           const SizedBox(height: 18),
+          // 막대 길이 = 걸린 시간 비율
           Row(
             children: [
-              _buildTimeBar(color: _line4, flex: 18),
-              const SizedBox(width: 4),
-              _buildTimeBar(color: _transferColor, flex: 5),
-              const SizedBox(width: 4),
-              _buildTimeBar(color: _line2, flex: 8),
+              for (var i = 0; i < parts.length; i++) ...[
+                if (i > 0) const SizedBox(width: 4),
+                _buildTimeBar(color: parts[i].$1, flex: parts[i].$2),
+              ],
             ],
           ),
           const SizedBox(height: 12),
@@ -355,10 +584,93 @@ class _RouteResultScreenState extends State<RouteResultScreen> {
             spacing: 12,
             runSpacing: 6,
             children: [
-              _buildLegend(color: _line4, label: '4호선 18분'),
-              _buildLegend(color: _transferColor, label: '환승 5분'),
-              _buildLegend(color: _line2, label: '2호선 8분'),
+              for (final part in parts)
+                _buildLegend(color: part.$1, label: part.$3),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildExplanationCard() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border.all(color: _border),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.auto_awesome, color: _navy, size: 18),
+              SizedBox(width: 6),
+              Text(
+                'AI 경로 설명',
+                style: TextStyle(
+                  color: _textColor,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          FutureBuilder<String>(
+            future: _explanationFor(_criteria),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState != ConnectionState.done) {
+                return const Row(
+                  children: [
+                    SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                    SizedBox(width: 10),
+                    Text(
+                      '설명을 만드는 중입니다…',
+                      style: TextStyle(color: _muted, fontSize: 13),
+                    ),
+                  ],
+                );
+              }
+              if (snapshot.hasError) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _explanationErrorText(snapshot.error),
+                      style: const TextStyle(
+                        color: _muted,
+                        fontSize: 13,
+                        height: 1.5,
+                      ),
+                    ),
+                    TextButton.icon(
+                      onPressed: _retryExplanation,
+                      icon: const Icon(Icons.refresh, size: 18),
+                      label: const Text('다시 시도'),
+                      style: TextButton.styleFrom(
+                        foregroundColor: _navy,
+                        padding: EdgeInsets.zero,
+                      ),
+                    ),
+                  ],
+                );
+              }
+              return Text(
+                snapshot.data!,
+                style: const TextStyle(
+                  color: _textColor,
+                  fontSize: 14,
+                  height: 1.6,
+                ),
+              );
+            },
           ),
         ],
       ),
@@ -428,38 +740,54 @@ class _RouteResultScreenState extends State<RouteResultScreen> {
     );
   }
 
-  Widget _buildTimeline() {
-    // Figma를 참고한 고정 예시입니다.
-    // 입력한 역명과 관계없이 실제 노선으로 안내하지 않습니다.
-    return Column(
-      children: [
+  /// 승차 → (환승 → 승차) … → 하차. 방면은 탑승 직후 다음 역이다.
+  Widget _buildTimeline(RouteResult route) {
+    if (route.segments.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    final steps = <Widget>[];
+    for (var i = 0; i < route.segments.length; i++) {
+      final segment = route.segments[i];
+      final color = _lineColor(segment.line);
+      final direction = segment.direction == null
+          ? ''
+          : ' · ${segment.direction!.name} 방면';
+
+      steps.add(
         _buildTimelineStep(
-          title: '서울역 승차',
-          subtitle: '4호선 · 오이도 방면 · 7개 역 이동',
-          duration: '18분',
-          markerColor: _line4,
-          lineColor: _line4,
-          markerText: '4',
+          title: '${segment.board.name} 승차',
+          subtitle: '${segment.line}호선$direction · ${segment.stops}개 역 이동',
+          duration: '${minutesOf(segment.rideSec)}분',
+          markerColor: color,
+          lineColor: color,
+          markerText: '${segment.line}',
         ),
-        _buildTimelineStep(
-          title: '사당역 환승',
-          subtitle: '4호선 → 2호선',
-          duration: '5분',
-          markerColor: _transferColor,
-          lineColor: _border,
-          transfer: true,
-        ),
-        _buildTimelineStep(
-          title: '사당역 승차',
-          subtitle: '2호선 · 잠실 방면 · 4개 역 이동',
-          duration: '8분',
-          markerColor: _line2,
-          lineColor: _line2,
-          markerText: '2',
-        ),
-        _buildTimelineStep(title: '강남역 하차', markerColor: _line2, isLast: true),
-      ],
+      );
+
+      if (i < route.transfers.length) {
+        final transfer = route.transfers[i];
+        steps.add(
+          _buildTimelineStep(
+            title: '${transfer.station.name} 환승',
+            subtitle: '${transfer.fromLine}호선 → ${transfer.toLine}호선',
+            duration: '${minutesOf(transfer.sec)}분',
+            markerColor: _transferColor,
+            lineColor: _border,
+            transfer: true,
+          ),
+        );
+      }
+    }
+    steps.add(
+      _buildTimelineStep(
+        title: '${route.end.name} 하차',
+        markerColor: _lineColor(route.segments.last.line),
+        isLast: true,
+      ),
     );
+
+    return Column(children: steps);
   }
 
   Widget _buildTimelineStep({
