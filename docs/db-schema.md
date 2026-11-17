@@ -5,7 +5,7 @@
 
 ## 한눈에 보기
 
-- 표는 8개다. 6개는 `load_db.py`가 원본 xlsx와 `data/extra` CSV로 채우고, 2개(주변 인프라, AI 설명 캐시)는 나중에 서버가 채운다.
+- 표는 9개다. 6개는 `load_db.py`가 원본 xlsx와 `data/extra` CSV로 채우고, 3개(주변 인프라, AI 설명 캐시, 주변 시설 AI 예시 캐시)는 서버가 채운다.
 - **즐겨찾기 표는 없다.** 즐겨찾기는 휴대폰(앱)에만 저장한다 (ASSUMPTIONS.md, 팀 결정 2026-11-06).
 - 경로 계산(`backend/app/routing`)은 지금 DB가 아니라 파일을 직접 읽는다 (`load_network`). DB의 역·구간 표도 같은 파일에서 채우므로 내용은 같다. **CSV를 고치면 `load_db.py`를 다시 실행**해서 DB도 맞춘다.
 
@@ -107,9 +107,15 @@ erDiagram
         TEXT text
         TIMESTAMPTZ created_at
     }
+    ai_facilities {
+        TEXT station_id PK
+        TEXT lang PK
+        JSONB items
+        TIMESTAMPTZ created_at
+    }
 ```
 
-`ai_explanations`는 다른 표와 연결되지 않는다. 경로·모임역 결과를 통째로 가리키는 이름표(`cache_key`)로 찾기 때문이다.
+`ai_explanations`는 다른 표와 연결되지 않는다. 경로·모임역 결과를 통째로 가리키는 이름표(`cache_key`)로 찾기 때문이다. `ai_facilities`도 캐시라서 `stations`와 연결(FK)하지 않았다.
 
 ## 테이블별 설명
 
@@ -185,8 +191,8 @@ erDiagram
 
 ### 7. `nearby_facilities` — 주변 인프라 (지금 0행)
 
-**왜 필요한가:** 모임역 추천 응답의 `nearby_facilities`(역 주변 카페·음식점 등)를 채운다. 가상 노선이라 Gemini가 지어내면 안 되므로, 시설 정보는 반드시 이 표에서 가져온다.
-**채우는 곳:** 아직 없음. 데이터 출처가 정해지면 채운다 (api-spec 논의 필요 4). `load_db.py`는 이 표를 건드리지 않는다.
+**왜 필요한가:** 실제 시설 데이터를 구하면 넣기 위한 표다. 지금은 실제 데이터가 없어서, 주변 시설은 AI 예시(9번 `ai_facilities`)를 쓴다 (팀 결정 2026-11-18).
+**채우는 곳:** 아직 없음. `load_db.py`는 이 표를 건드리지 않는다.
 
 | 컬럼 | 타입 | 제약 | 설명 |
 |---|---|---|---|
@@ -209,7 +215,20 @@ erDiagram
 | `text` | TEXT | NOT NULL | Gemini가 만든 설명 문장 |
 | `created_at` | TIMESTAMPTZ | 기본값 지금 시각 | 만든 시각. 프롬프트를 고친 뒤 옛 설명을 지울 때 쓴다 |
 
-`/explain`이 이 표를 쓰는 순서:
+### 9. `ai_facilities` — 주변 시설 AI 예시 캐시
+
+**왜 필요한가:** 주변 시설은 실제 데이터가 없어서 역 이름을 바탕으로 Gemini가 예시를 만든다 (ASSUMPTIONS.md 팀 결정 2026-11-18). 역 + 언어별로 한 번만 만들어 저장해 두면, 같은 역은 늘 같은 시설이 보이고 Gemini도 덜 부른다.
+**채우는 곳:** `GET /stations/{station_id}/facilities`. `load_db.py`는 이 표를 만들기만 하고 내용은 건드리지 않는다.
+**7번 `nearby_facilities`와 다른 점:** 7번은 실제 시설 데이터용(지금 비어 있음), 9번은 AI 예시 저장용이다.
+
+| 컬럼 | 타입 | 제약 | 설명 |
+|---|---|---|---|
+| `station_id` | TEXT | PK | 역 ID (예: `705`) |
+| `lang` | TEXT | PK | 시설 이름·위치 안내 언어 (`ko`, `en`, `ja` …) |
+| `items` | JSONB | NOT NULL | `[{"category", "name", "detail"}, …]` 최대 5개. JSONB는 JSON을 그대로 저장하는 타입 |
+| `created_at` | TIMESTAMPTZ | 기본값 지금 시각 | 만든 시각. 프롬프트를 고친 뒤 옛 예시를 지울 때 쓴다 |
+
+`/explain`이 8번 표를 쓰는 순서:
 
 1. 요청으로 `cache_key`를 만든다.
 2. (`cache_key`, `lang`)이 같은 행을 찾는다.
@@ -237,7 +256,7 @@ erDiagram
 
 - **개발 중 (지금):** 표를 모두 지우고 다시 만든다. 가장 간단하다.
   ```bash
-  psql -d subfit -c "DROP TABLE IF EXISTS transfers, line_stations, edges, station_names, nearby_facilities, ai_explanations, stations, lines"
+  psql -d subfit -c "DROP TABLE IF EXISTS transfers, line_stations, edges, station_names, nearby_facilities, ai_explanations, ai_facilities, stations, lines"
   python scripts/load_db.py
   ```
   ⚠️ 주변 인프라와 AI 설명 캐시에 쌓인 데이터도 같이 지워진다.
@@ -254,6 +273,6 @@ erDiagram
 
 | 항목 | 지금 상태 | 관련 |
 |---|---|---|
-| 주변 인프라 데이터 출처 | 표만 있고 비어 있다. 이름 컬럼(`name_ko`, `name_en`)은 가안이다 | api-spec 논의 필요 4 |
+| 실제 주변 인프라 데이터 | `nearby_facilities`(7번)는 표만 있고 비어 있다. 지금은 AI 예시(9번 `ai_facilities`)를 쓴다 (2026-11-18) | api-spec 논의 필요 4 |
 | AI 캐시 `cache_key` 만드는 방법 | `/explain`을 만들 때 정한다. `route:101:207:time`처럼 출발·도착·기준으로 만들면, 서버가 앱이 보낸 `result`를 그대로 믿지 말고 직접 다시 계산해야 안전하다 | api-spec 논의 필요 8 |
 | AI 설명에 시각 넣기 | 설명에 "18:30 출발" 같은 시각이 들어가면 출발 시각마다 설명이 달라져 재사용할 수 없다. "약 42분"처럼 걸리는 시간만 말하게 한다 (가안) | `/explain` 프롬프트 |
