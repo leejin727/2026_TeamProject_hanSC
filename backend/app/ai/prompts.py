@@ -34,8 +34,17 @@ _ROUTE_SYSTEM = """너는 외국인 여행자를 위한 지하철 길찾기 앱�
 _MEETING_SYSTEM = """너는 외국인 여행자를 위한 지하철 앱에서 모임역 추천 이유를 쓴다.
 서버가 계산한 모임역과 참가자별 이동 결과(JSON)를 받아, 왜 이 역이 추천되었는지 설명한다.
 규칙:
-{rules}- 참가자별 이동 시간과 환승 횟수를 근거로 설명한다.
+{rules}- 데이터의 rule(추천 기준)과 참가자별 이동 시간·환승 횟수, 합계·최대 시간을 근거로 설명한다.
+- 다른 역과 비교하는 말(예: "다른 역보다 몇 분 빠르다")은 데이터에 없으므로 하지 않는다.
+- 이동 시간이 0분인 참가자는 이미 모임역에서 출발하는 사람이다.
 """
+
+# 모임역 기준별로 실제 고르는 방법 (data/extra/ASSUMPTIONS.md "모임역 추천 확정 사항"과 같아야 한다)
+_MEETING_RULES = {
+    "time": "모든 참여자의 이동 시간 합이 가장 작은 역",
+    "transfers": "모든 참여자의 환승 횟수 합이 가장 작은 역 (같으면 이동 시간 합이 작은 역)",
+    "fairness": "가장 오래 걸리는 참여자의 이동 시간이 가장 짧은 역 (같으면 이동 시간 합이 작은 역)",
+}
 
 
 def _minutes(sec: int) -> int:
@@ -85,10 +94,17 @@ def route_prompt(route: dict, lang: str) -> tuple[str, str]:
 
 
 def meeting_prompt(result: dict, lang: str) -> tuple[str, str]:
-    """POST /meeting-station 응답 모양(api-spec.md 3장)의 결과로 프롬프트를 만든다. 모임역 API가 생기면 쓴다."""
+    """POST /meeting-station 응답 모양(api-spec.md 3장)의 결과로 프롬프트를 만든다.
+
+    비용(모임역에는 없음), 방면, 주변 시설(데이터 없음)은 넣지 않는다.
+    """
     data = {
         "criteria": result["criteria"],
+        "rule": _MEETING_RULES[result["criteria"]],
         "meeting_station": result["station"]["name"],
+        "total_travel_minutes": _minutes(result["total_travel_sec"]),
+        "max_travel_minutes": _minutes(result["max_travel_sec"]),
+        "total_transfer_count": result["total_transfer_count"],
         "participants": [
             {
                 "start": p["start"]["name"],

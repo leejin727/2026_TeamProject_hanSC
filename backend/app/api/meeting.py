@@ -4,6 +4,7 @@ from fastapi import APIRouter, Request
 from pydantic import BaseModel, StrictStr
 from app.api.common import check_lang, check_station, station_ref
 from app.errors import AppError
+from app.routing.graph_builder import Network
 from app.routing.meeting import find_meeting_station, NoMeetingStationError
 
 router = APIRouter()
@@ -15,7 +16,10 @@ class MeetingRequest(BaseModel):
 
 @router.post("/meeting-station")
 def calculate_meeting_station(body: MeetingRequest, request: Request) -> dict:
-    network = request.app.state.network
+    return compute_meeting(request.app.state.network, body)
+
+def compute_meeting(network: Network, body: MeetingRequest) -> dict:
+    """입력 검사 + 모임역 계산 + 응답 모양 만들기. POST /explain도 이 함수로 모임역을 다시 계산한다."""
     check_lang(body.lang)
     count = len(body.start_station_ids)
     if not 2 <= count <= 4:

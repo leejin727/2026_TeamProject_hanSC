@@ -134,5 +134,46 @@ def test_invalid_lang_type_and_request(client, gemini):
     assert gemini.calls == []
 
 
-def test_meeting_not_implemented_yet(client, gemini):
-    assert error(explain(client, type_="meeting", request={})) == (501, "NOT_IMPLEMENTED", None)
+# ----- 모임역 설명 (type=meeting) -----
+
+MEETING_REQUEST = {"start_station_ids": ["101", "416", "805"], "criteria": "time", "lang": "en"}
+
+
+def test_meeting_first_call_not_cached_then_cached(client, gemini):
+    first = explain(client, type_="meeting", request=MEETING_REQUEST)
+    assert first.status_code == 200
+    assert first.json() == {"explanation": FAKE_TEXT, "cached": False}
+    assert explain(client, type_="meeting", request=MEETING_REQUEST).json()["cached"] is True
+    assert len(gemini.calls) == 1
+
+
+def test_meeting_prompt_uses_server_calculated_result(client, gemini):
+    # 앱이 결과를 조작해 보내도(station) 무시하고, 서버가 다시 계산한 모란(705)으로 설명한다.
+    # 값은 docs/api-spec.md·ASSUMPTIONS.md의 확인용 정답: 4540초(76분)·900초(15분)·810초(14분), 합 6250초(104분)
+    explain(client, type_="meeting", request={**MEETING_REQUEST, "station": "101"}, lang="ko")
+    call = gemini.calls[0]
+    assert '"meeting_station": "Moran"' in call["contents"]
+    assert '"rule": "모든 참여자의 이동 시간 합이 가장 작은 역"' in call["contents"]
+    assert '"total_travel_minutes": 104' in call["contents"]
+    assert '"max_travel_minutes": 76' in call["contents"]
+    assert '{"start": "Sindorim", "travel_minutes": 76, "transfer_count": 2}' in call["contents"]
+    assert "cost" not in call["contents"]  # 비용·주변 시설은 넘기지 않는다
+    assert "추천 이유" in call["system"] and "한국어" in call["system"]
+
+
+@pytest.mark.parametrize("criteria, station", [("fairness", "Meokgol"), ("transfers", "Moran")])
+def test_meeting_prompt_follows_criteria(client, gemini, criteria, station):
+    explain(client, type_="meeting", request={**MEETING_REQUEST, "criteria": criteria})
+    assert f'"meeting_station": "{station}"' in gemini.calls[0]["contents"]
+    assert f'"criteria": "{criteria}"' in gemini.calls[0]["contents"]
+
+
+def test_meeting_request_errors(client, gemini):
+    # /meeting-station과 같은 검사를 한다
+    response = explain(client, type_="meeting", request={**MEETING_REQUEST, "start_station_ids": ["101"]})
+    assert error(response) == (400, "INVALID_PARTICIPANT_COUNT", {"count": 1, "min": 2, "max": 4})
+    response = explain(client, type_="meeting", request={**MEETING_REQUEST, "start_station_ids": ["101", "999"]})
+    assert error(response) == (400, "STATION_NOT_FOUND", {"station_id": "999"})
+    response = explain(client, type_="meeting", request={**MEETING_REQUEST, "criteria": "cheap"})
+    assert error(response) == (400, "VALIDATION_ERROR", {"field": "request.criteria"})
+    assert gemini.calls == []
