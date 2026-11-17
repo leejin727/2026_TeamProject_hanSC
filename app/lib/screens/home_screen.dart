@@ -440,10 +440,7 @@ class _HomeScreenState extends State<HomeScreen> {
             child: InkWell(
               onTap: onTap,
               child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 19,
-                ),
+                padding: const EdgeInsets.fromLTRB(16, 19, 8, 19),
                 child: Text(
                   '${route.departure} → ${route.arrival}',
                   style: const TextStyle(
@@ -475,6 +472,13 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               );
             },
+          ),
+          IconButton(
+            onPressed: () {
+              RecentRoutes.remove(route.departure, route.arrival);
+            },
+            tooltip: '${route.departure} → ${route.arrival} 검색 기록 삭제',
+            icon: const Icon(Icons.close, color: _muted, size: 19),
           ),
           const SizedBox(width: 4),
         ],

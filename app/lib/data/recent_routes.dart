@@ -45,6 +45,19 @@ class RecentRoutes {
     );
   }
 
+  // 출발역과 도착역이 일치하는 검색 기록 하나를 삭제합니다.
+  static void remove(String departure, String arrival) {
+    final from = departure.trim();
+    final to = arrival.trim();
+
+    items.value = List<RecentRoute>.unmodifiable(
+      items.value.where(
+        (route) => !(route.departure == from && route.arrival == to),
+      ),
+    );
+  }
+
+  // 전체 검색 기록을 삭제합니다.
   static void clear() {
     items.value = const <RecentRoute>[];
   }
