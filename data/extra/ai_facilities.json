@@ -10932,6 +10932,33 @@
     "detail": "站内 · 候车室旁"
    }
   ],
+  "zh-Hant": [
+   {
+    "category": "cafe",
+    "name": "星巴克",
+    "detail": "2號出口 · 步行2分鐘"
+   },
+   {
+    "category": "restaurant",
+    "name": "廣渡口炭火烤肉",
+    "detail": "1號出口 · 步行5分鐘"
+   },
+   {
+    "category": "convenience_store",
+    "name": "CU便利店",
+    "detail": "3號出口 · 步行1分鐘"
+   },
+   {
+    "category": "pharmacy",
+    "name": "健康大藥房",
+    "detail": "2號出口 · 步行3分鐘"
+   },
+   {
+    "category": "restroom",
+    "name": "站內洗手間",
+    "detail": "站內 · 候車室旁"
+   }
+  ],
   "vi": [
    {
     "category": "cafe",
