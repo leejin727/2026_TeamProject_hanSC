@@ -9,25 +9,31 @@
 - 여러 번 실행해도 결과가 같다. 파일에서 오는 표는 매번 파일 내용과 똑같이 맞춘다.
 - 전체가 트랜잭션 하나다. 중간에 실패하거나 검증에 걸리면 DB는 실행 전 그대로 남는다.
 - 주변 인프라(nearby_facilities)와 AI 설명 캐시(ai_explanations)는 건드리지 않는다.
+- 주변 시설 AI 예시(ai_facilities)는 data/extra/ai_facilities.json(scripts/generate_facilities.py가 만듦)에
+  있는 역·언어만 파일 내용으로 맞춘다. 파일에 없는 것(서버가 그때그때 만든 것)은 그대로 둔다.
 - 원본 data/raw/stations.xlsx는 읽기만 한다.
 테이블 설명: docs/db-schema.md
 """
 
+import json
 import sys
 from pathlib import Path
 
 import pandas as pd
 import psycopg
+from psycopg.types.json import Jsonb
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend"))  # backend/app의 설정·DB 모듈을 같이 쓰기 위해
 
+from app.ai.prompts import LANGUAGES  # noqa: E402
 from app.config import MissingSettingError  # noqa: E402
 from app.db.connection import connect  # noqa: E402
 
 RAW = ROOT / "data/raw/stations.xlsx"
 EXTRA = ROOT / "data/extra"
 SCHEMA = ROOT / "backend/app/db/schema.sql"
+FACILITIES = EXTRA / "ai_facilities.json"  # 없으면 건너뛴다
 
 # 적재 후 반드시 맞아야 하는 개수 (validate_data.py의 EXPECTED와 같은 기준)
 EXPECTED = {"역": 111, "구간": 139, "환승역": 35, "노선": 9}
@@ -120,6 +126,30 @@ def load(conn: psycopg.Connection, rows: dict[str, list[tuple]]) -> None:
             cur.executemany(INSERT_SQL[table], rows[table])
 
 
+def read_facilities(stations: set[str]) -> list[tuple]:
+    """ai_facilities.json → (역 ID, 언어, 시설 목록) 행. 모르는 역·언어가 있으면 CheckFailed."""
+    if not FACILITIES.exists():
+        return []
+    data = json.loads(FACILITIES.read_text(encoding="utf-8"))
+    rows = [(sid, lang, items) for sid, by_lang in data.items() for lang, items in by_lang.items()]
+    errors = [f"{FACILITIES.name}: 모르는 역 {sid}" for sid in data if sid not in stations]
+    errors += [f"{FACILITIES.name}: 모르는 언어 {sid}/{lang}" for sid, lang, _ in rows if lang not in LANGUAGES]
+    if errors:
+        raise CheckFailed(errors)
+    return rows
+
+
+def load_facilities(conn: psycopg.Connection, rows: list[tuple]) -> None:
+    """파일에 있는 역·언어만 upsert한다 (있으면 파일 내용으로 바꾸고, 없으면 넣기)."""
+    conn.cursor().executemany(
+        "INSERT INTO ai_facilities (station_id, lang, items) VALUES (%s, %s, %s) "
+        "ON CONFLICT (station_id, lang) DO UPDATE SET items = EXCLUDED.items, created_at = now()",
+        [(sid, lang, Jsonb(items)) for sid, lang, items in rows],
+    )
+    total = count(conn, "SELECT count(*) FROM ai_facilities")
+    print(f"{'ai_facilities':<20}{total:>6}{len(rows):>6}   (파일에 없는 {total - len(rows)}행은 그대로 둠)")
+
+
 def count(conn: psycopg.Connection, sql: str) -> int:
     return conn.execute(sql).fetchone()[0]
 
@@ -148,9 +178,11 @@ def verify(conn: psycopg.Connection, rows: dict[str, list[tuple]]) -> None:
 def main() -> int:
     rows = read_files()
     try:
+        facilities = read_facilities({r[0] for r in rows["stations"]})
         with connect() as conn:  # 블록이 오류 없이 끝나면 commit, 오류가 나면 전부 rollback
             load(conn, rows)
             verify(conn, rows)
+            load_facilities(conn, facilities)
     except MissingSettingError as e:
         print(f"❌ {e}")
         return 1

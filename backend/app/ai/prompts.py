@@ -130,22 +130,43 @@ _FACILITIES_SYSTEM = """너는 외국인 여행자를 위한 지하철 앱에서
 같은 이름의 실제 서울 역 주변을 떠올려, 그럴듯한 예시 시설을 만든다. 정확하지 않아도 되는 예시다.
 규칙:
 - name과 detail은 반드시 {language}로 쓴다. 가게 이름이 고유명사면 그 언어에서 자연스러운 표기를 쓴다.
-- {language}가 한국어가 아니면 한글을 한 글자도 쓰지 않는다. 한국 가게 이름도 그 언어 표기로 옮긴다 (예: 日本語 "スターバックス", English "Starbucks").
 - category마다 정확히 1개씩, 모두 5개: cafe(카페), restaurant(음식점), convenience_store(편의점), pharmacy(약국), restroom(공중화장실).
 - name은 시설 이름(20자 이내), detail은 위치 안내 한 줄이다. 형식 예: 한국어 "2번 출구 · 도보 3분", English "Exit 2 · 3 min walk".
 - 공중화장실은 "역 안 · 대합실"처럼 역 안 위치로 써도 된다.
 - 광고 문구, 전화번호, 가격, 영업시간, 위험하거나 불쾌한 내용은 쓰지 않는다.
 """
 
+# 한국어가 아닌 언어는 프롬프트도 영어로만 준다 (한글이 한 글자도 없게).
+# 한국어 프롬프트를 주면 답에 한글이 섞이는 일이 잦았다 (2026-11-18, 예: ja "スターバックス 千호역점").
+_FACILITIES_SYSTEM_OTHER = """You create example facilities near a subway station for a subway app for foreign travelers.
+The app's subway map is fictional; only the station names are borrowed from real Seoul subway stations.
+Imagine the area around the real Seoul station with the same name and make plausible example facilities. They do not have to be accurate.
+Rules:
+- Write name and detail only in {language}. Never use Korean letters (Hangul) anywhere, including shop names and station names.
+{place_names}- Exactly one facility per category, five in total: cafe, restaurant, convenience_store, pharmacy, restroom.
+- name is the facility name (up to 20 characters). detail is a one-line location like "Exit 2 · 3 min walk", written in {language}.
+- The restroom may be inside the station (like "Inside station · Concourse").
+- No advertising, phone numbers, prices, opening hours, or harmful or offensive content.
+"""
+
+# 일본어는 한국 지명을 한자로 옮기다가 모르는 글자만 한글로 남기는 일이 많아서 가타카나로 쓰게 한다.
+# (이 줄을 넣기 전 실패한 역 3곳에서 6번 중 1번 성공 → 넣은 뒤 6번 모두 성공, 남은 일본어 80개도 모두 성공)
+# 중국어도 같은 실수가 가끔 있지만(예: "廣나루咖啡"), 비슷한 규칙을 넣어 봐도 나아지지 않아서 넣지 않았다.
+_PLACE_NAMES = {
+    "ja": "- Write Korean place names and station names in katakana only (e.g. Cheonho -> チョンホ, "
+          "Jongno -> チョンノ). Do not convert Korean place names to kanji.\n",
+}
+
 
 def facilities_prompt(name_ko: str, name_en: str, lang: str) -> tuple[str, str]:
     """역 이름(한국어·영어)으로 주변 시설 예시를 만드는 프롬프트."""
-    system = _FACILITIES_SYSTEM.format(language=LANGUAGES[lang])
-    # 한국어가 아닌 언어에 한국어 역 이름을 같이 주면 답이 한국어로 나오는 일이 잦았다 (ja 3번 중 2번).
-    # 그래서 한국어일 때만 한국어 이름을 준다.
-    data = {"station_name_ko": name_ko} if lang == "ko" else {"station_name_en": name_en}
-    user = (
-        f"다음 역 주변의 시설 예시 5개를 만들어 줘. name과 detail은 반드시 {LANGUAGES[lang]}로 써.\n"
-        f"역(JSON):\n{json.dumps(data, ensure_ascii=False)}"
-    )
-    return system, user
+    if lang == "ko":
+        system = _FACILITIES_SYSTEM.format(language=LANGUAGES[lang])
+        ask = f"다음 역 주변의 시설 예시 5개를 만들어 줘. name과 detail은 반드시 {LANGUAGES[lang]}로 써.\n역(JSON):"
+        data = {"station_name_ko": name_ko}
+    else:
+        system = _FACILITIES_SYSTEM_OTHER.format(language=LANGUAGES[lang], place_names=_PLACE_NAMES.get(lang, ""))
+        ask = f"Make 5 example facilities near this station. Write name and detail only in {LANGUAGES[lang]}.\nStation (JSON):"
+        # 한국어 이름을 같이 주면 답이 한국어로 나오는 일이 잦아서 영어 이름만 준다
+        data = {"station_name_en": name_en}
+    return system, f"{ask}\n{json.dumps(data, ensure_ascii=False)}"

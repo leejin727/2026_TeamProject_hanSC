@@ -77,6 +77,11 @@ python scripts/load_db.py
 
 - 위 "데이터 검증"과 "서버 실행과 테스트"의 패키지(`scripts/requirements.txt`, `backend/requirements.txt`)가 둘 다 설치되어 있어야 한다.
 - 몇 번을 실행해도 결과가 같다. 끝에 `✅ 적재 완료, 검증 통과`가 나오면 성공이다.
+- 주변 시설 AI 예시(`data/extra/ai_facilities.json`)도 함께 넣는다. 이 파일을 새로 만들거나 채울 때만 아래를 실행한다 (`.env`의 `GEMINI_FACILITY_API_KEY` 사용, 이미 있는 것은 건너뜀, 멈춰도 다시 실행하면 이어서 만듦).
+
+  ```bash
+  python scripts/generate_facilities.py --lang ko en   # 언어 생략하면 6개 전부
+  ```
 
 ## 협업 규칙
 

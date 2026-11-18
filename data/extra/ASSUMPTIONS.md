@@ -8,6 +8,7 @@
 | lines.csv | 순환선 여부 | 노선도 |
 | transfers.csv | 환승역 35개, 환승 1회당 300초 | 팀 결정 (모든 환승역 동일) |
 | station_names.csv | 역 이름 (한국어·영어) | 서울 실제 역명을 노선별로 빌려 배치. 실제 위치·순서와 무관한 가상 배치 |
+| ai_facilities.json | 역·언어별 주변 시설 **예시** (아래 "주변 시설") | Gemini가 만든 가짜 예시. `scripts/generate_facilities.py`로 만든다 |
 
 - 모든 구간은 양방향이며, 두 방향의 시간·거리·비용이 같다고 가정한다 (원본에 방향 정보 없음).
 - 시간 단위는 초, 거리는 미터, 비용은 원 (원본 열 이름 기준).
@@ -37,5 +38,6 @@
 - 종류는 5개, 종류마다 1개: 카페(cafe), 음식점(restaurant), 편의점(convenience_store), 약국(pharmacy), 공중화장실(restroom). 각각 이름(name)과 위치 안내(detail, 예: "2번 출구 · 도보 3분").
 - 앱은 "AI가 만든 예시이며 실제와 다를 수 있음"을 함께 보여 준다. API 응답에는 `ai_generated: true`가 들어간다.
 - 역 + 언어별로 한 번 만들어 DB(`ai_facilities`)에 저장하고 다시 쓴다. 그래서 같은 역은 늘 같은 시설이 보인다.
+- 미리 만들어 `ai_facilities.json`에 저장해 공유한다 (`scripts/generate_facilities.py`). `load_db.py`가 이 파일을 DB에 넣는다. 캐시 DB는 컴퓨터마다 따로라서, 파일로 공유해야 모두 같은 시설을 보고 Gemini도 한 번만 부른다. 파일에 없는 역·언어만 서버가 요청 때 만든다.
 - 설명용과 다른 Gemini 키(`GEMINI_FACILITY_API_KEY`)를 쓴다. 비어 있어도 설명용 키로 대신 쓰지 않는다.
 - 경로·모임역 AI 설명에는 여전히 주변 시설을 말하지 않는다 (데이터에 없는 내용이므로).
