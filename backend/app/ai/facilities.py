@@ -10,7 +10,7 @@ from typing import Literal
 
 import psycopg
 from psycopg.types.json import Jsonb
-from pydantic import BaseModel, Field, TypeAdapter, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, ValidationError
 
 from app.ai import client, prompts
 from app.api.common import check_station, station_ref
@@ -26,6 +26,8 @@ FACILITY_LANGS = tuple(prompts.LANGUAGES)  # ko, en, ja, zh-Hans, zh-Hant, vi
 
 class Facility(BaseModel):
     """시설 하나. Gemini에게 이 모양으로만 답하게 한다."""
+
+    model_config = ConfigDict(str_strip_whitespace=True)  # 앞뒤 빈칸은 지운다 (실제로 " チョンホ薬局"이 온 적 있음)
 
     category: Literal["cafe", "restaurant", "convenience_store", "pharmacy", "restroom"]
     name: str = Field(min_length=1, max_length=60)
@@ -48,16 +50,24 @@ def facilities(network: Network, station_id: str, lang: str) -> dict:
     cached = items is not None
     if items is None:
         name_ko, name_en = network.names[station_id]
-        system_prompt, user_prompt = prompts.facilities_prompt(name_ko, name_en, lang)
         try:
-            text = client.generate_json(system_prompt, user_prompt, list[Facility])
-            items = _clean(text, lang)
+            items = generate(name_ko, name_en, lang)
         except (MissingSettingError, client.AIUnavailableError, ValueError) as e:
             logger.warning("주변 시설 생성 실패: %s", e)  # 원인(키 없음, 시간 초과, 모양 틀림)은 서버 로그에만
             raise AppError(503, "AI_UNAVAILABLE", "지금은 주변 시설 정보를 만들 수 없습니다") from e
         save_cached(station_id, lang, items)
 
     return {"station": station, "facilities": items, "ai_generated": True, "cached": cached}
+
+
+def generate(name_ko: str, name_en: str, lang: str) -> list[dict]:
+    """Gemini로 역 하나·언어 하나의 시설 예시를 만든다. 서버와 미리 만들기 스크립트가 같이 쓴다.
+
+    키가 없으면 MissingSettingError, Gemini 실패는 client.AIUnavailableError, 답이 틀리면 ValueError.
+    """
+    system_prompt, user_prompt = prompts.facilities_prompt(name_ko, name_en, lang)
+    text = client.generate_json(system_prompt, user_prompt, list[Facility])
+    return _clean(text, lang)
 
 
 _HANGUL = re.compile(r"[가-힣ㄱ-ㆎ]")  # 한글 글자·자모
@@ -72,9 +82,10 @@ def _clean(text: str, lang: str) -> list[dict]:
         parsed = _FACILITY_LIST.validate_json(text)
     except ValidationError as e:
         raise ValueError(f"Gemini 답의 모양이 틀립니다: {e.errors()[0]['msg']}") from e
-    if lang != "ko" and any(_HANGUL.search(f.name + f.detail) for f in parsed):
+    mixed = [f.name for f in parsed if _HANGUL.search(f.name + f.detail)] if lang != "ko" else []
+    if mixed:
         # 실제로 ja 요청에 한국어로 답한 적이 있다 (2026-11-18)
-        raise ValueError(f"{lang}로 요청했는데 한글이 섞인 답이 왔습니다")
+        raise ValueError(f"{lang}로 요청했는데 한글이 섞인 답이 왔습니다: {mixed[0]}")
     first = {}
     for facility in parsed:
         first.setdefault(facility.category, facility)

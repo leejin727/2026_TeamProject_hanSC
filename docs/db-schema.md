@@ -5,7 +5,7 @@
 
 ## 한눈에 보기
 
-- 표는 9개다. 6개는 `load_db.py`가 원본 xlsx와 `data/extra` CSV로 채우고, 3개(주변 인프라, AI 설명 캐시, 주변 시설 AI 예시 캐시)는 서버가 채운다.
+- 표는 9개다. 6개는 `load_db.py`가 원본 xlsx와 `data/extra` CSV로 채우고, 3개(주변 인프라, AI 설명 캐시, 주변 시설 AI 예시 캐시)는 서버가 채운다. 주변 시설 AI 예시는 미리 만든 파일(`data/extra/ai_facilities.json`)에서 `load_db.py`도 채운다.
 - **즐겨찾기 표는 없다.** 즐겨찾기는 휴대폰(앱)에만 저장한다 (ASSUMPTIONS.md, 팀 결정 2026-11-06).
 - 경로 계산(`backend/app/routing`)은 지금 DB가 아니라 파일을 직접 읽는다 (`load_network`). DB의 역·구간 표도 같은 파일에서 채우므로 내용은 같다. **CSV를 고치면 `load_db.py`를 다시 실행**해서 DB도 맞춘다.
 
@@ -218,7 +218,9 @@ erDiagram
 ### 9. `ai_facilities` — 주변 시설 AI 예시 캐시
 
 **왜 필요한가:** 주변 시설은 실제 데이터가 없어서 역 이름을 바탕으로 Gemini가 예시를 만든다 (ASSUMPTIONS.md 팀 결정 2026-11-18). 역 + 언어별로 한 번만 만들어 저장해 두면, 같은 역은 늘 같은 시설이 보이고 Gemini도 덜 부른다.
-**채우는 곳:** `GET /stations/{station_id}/facilities`. `load_db.py`는 이 표를 만들기만 하고 내용은 건드리지 않는다.
+**채우는 곳:** 두 군데다.
+- `load_db.py`: 미리 만든 `data/extra/ai_facilities.json`(만드는 법: `python scripts/generate_facilities.py --lang ko en`)을 넣는다. 파일에 있는 역·언어는 파일 내용으로 바꾸고, 파일에 없는 행은 그대로 둔다.
+- `GET /stations/{station_id}/facilities`: 표에 없는 역·언어를 요청받으면 그때 Gemini로 만들어 저장한다.
 **7번 `nearby_facilities`와 다른 점:** 7번은 실제 시설 데이터용(지금 비어 있음), 9번은 AI 예시 저장용이다.
 
 | 컬럼 | 타입 | 제약 | 설명 |
@@ -246,7 +248,8 @@ erDiagram
 5. 검증한다.
    - 모든 표의 DB 행 수가 파일 행 수와 같은지
    - 기준 개수가 **역 111, 구간 139, 환승역 35, 노선 9**인지 (`validate_data.py`와 같은 기준)
-6. 검증을 통과하면 확정(commit)한다. 실패하면 취소(rollback)하고 종료 코드 1로 끝난다.
+6. `data/extra/ai_facilities.json`이 있으면 `ai_facilities`에 upsert한다. 파일에 모르는 역·언어가 있으면 검증 실패로 본다.
+7. 검증을 통과하면 확정(commit)한다. 실패하면 취소(rollback)하고 종료 코드 1로 끝난다.
 
 그래서 몇 번을 실행해도 DB 내용은 항상 "지금 파일 내용"과 같다. 중복으로 쌓이지 않는다.
 

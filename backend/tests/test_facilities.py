@@ -97,21 +97,26 @@ def test_prompt_uses_station_names_and_language(client, monkeypatch):
     response = get(client, lang="ja")
     assert response.json()["station"] == {"id": "705", "name": "Moran"}  # ko가 아니면 영어 이름
     call = gemini.calls[0]
-    # 한국어가 아니면 영어 역 이름만 준다 (한국어 이름을 주면 답이 한국어로 나오는 일이 잦았다)
-    assert '"station_name_en": "Moran"' in call["contents"] and "모란" not in call["contents"]
+    # 한국어가 아니면 영어 역 이름만 주고, 프롬프트에 한글을 한 글자도 넣지 않는다
+    # (한국어 이름이나 한국어 프롬프트를 주면 답에 한글이 섞이는 일이 잦았다)
+    assert '"station_name_en": "Moran"' in call["contents"]
+    assert not ai_facilities._HANGUL.search(call["system"] + call["contents"])
     assert "日本語" in call["system"]
+    assert "katakana" in call["system"]  # 일본어는 한국 지명을 가타카나로
     assert call["mime"] == "application/json"  # JSON 모양으로만 답하게 한다
 
     get(client, lang="ko")
     assert '"station_name_ko": "모란"' in gemini.calls[1]["contents"]
+    get(client, lang="vi")
+    assert "katakana" not in gemini.calls[2]["system"]  # 가타카나 규칙은 일본어에만
 
 
 def test_answer_is_cleaned_one_per_category_in_fixed_order(client, monkeypatch):
-    messy = [FIVE[4], FIVE[0], {**FIVE[0], "name": "두 번째 카페"}, FIVE[2]]
+    messy = [FIVE[4], {**FIVE[0], "name": " 모란 커피  "}, {**FIVE[0], "name": "두 번째 카페"}, FIVE[2]]
     use_gemini(monkeypatch, answer=messy)
     items = get(client).json()["facilities"]
     assert [i["category"] for i in items] == ["cafe", "convenience_store", "restroom"]
-    assert items[0]["name"] == "모란 커피"  # 같은 종류가 여러 개면 첫 번째만
+    assert items[0]["name"] == "모란 커피"  # 같은 종류가 여러 개면 첫 번째만, 앞뒤 빈칸은 지운다
 
 
 # ----- 오류 -----
