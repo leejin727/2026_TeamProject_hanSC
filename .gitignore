@@ -22,5 +22,9 @@ __pycache__/
 CLAUDE.local.md
 .claude/settings.local.json
 
+# ===== 챗봇 나노 모델을 받은 폴더 (학습 원본 .pt 등. 서버가 쓰는 파일은 backend/app/chat/nano/에 있다) =====
+subfit_nano_v*/
+*.pt
+
 # ===== 기타 =====
 *.log

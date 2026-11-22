@@ -1,1 +1,5 @@
 * text=auto
+
+# 챗봇 나노 모델과 실행기: 글자 파일이 아니다 (줄 끝을 바꾸면 깨진다)
+*.bin binary
+backend/app/chat/nano/bin/* binary
