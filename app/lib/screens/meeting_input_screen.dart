@@ -22,8 +22,8 @@ class MeetingInputScreen extends StatefulWidget {
 
 class _MeetingInputScreenState extends State<MeetingInputScreen> {
   // 처음에는 나와 친구 두 명의 입력창을 표시합니다.
+  // 처음에는 나와 친구 1, 총 두 명의 입력창을 표시합니다.
   final List<TextEditingController> _controllers = [
-    TextEditingController(),
     TextEditingController(),
     TextEditingController(),
   ];
