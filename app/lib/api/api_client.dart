@@ -121,6 +121,7 @@ class RouteTransfer {
 /// POST /routes 응답 (api-spec.md 2장).
 class RouteResult {
   const RouteResult({
+    required this.criteria,
     required this.start,
     required this.end,
     required this.totalSec,
@@ -130,6 +131,7 @@ class RouteResult {
   });
 
   factory RouteResult.fromJson(Map<String, dynamic> json) => RouteResult(
+    criteria: json['criteria'] as String,
     start: StationRef.fromJson(json['start'] as Map<String, dynamic>),
     end: StationRef.fromJson(json['end'] as Map<String, dynamic>),
     totalSec: json['total_sec'] as int,
@@ -144,6 +146,8 @@ class RouteResult {
     ],
   );
 
+  /// 이 경로를 계산한 기준: 'time'(최단시간) 또는 'transfers'(최소환승)
+  final String criteria;
   final StationRef start;
   final StationRef end;
   final int totalSec;
@@ -199,6 +203,80 @@ class MeetingResult {
   final List<MeetingParticipant> participants;
   final int totalTravelSec;
   final int maxTravelSec;
+}
+
+/// 챗봇 답에 딸려 오는 문장 카드: 역무원에게 보여 줄 한국어 문장.
+class ChatPhrase {
+  const ChatPhrase({
+    required this.id,
+    required this.korean,
+    required this.meaning,
+  });
+
+  factory ChatPhrase.fromJson(Map<String, dynamic> json) => ChatPhrase(
+    id: json['id'] as String,
+    korean: json['korean'] as String,
+    meaning: json['meaning'] as String?,
+  );
+
+  final String id;
+  final String korean;
+
+  /// 문장의 뜻. 영어로 답할 때만 있고, 한국어로 답할 때는 null
+  final String? meaning;
+}
+
+/// POST /chat 응답 (api-spec.md 4-2장).
+class ChatReply {
+  const ChatReply({
+    required this.intent,
+    required this.topic,
+    required this.lang,
+    required this.text,
+    required this.route,
+    required this.phrases,
+    required this.options,
+    required this.context,
+  });
+
+  factory ChatReply.fromJson(Map<String, dynamic> json) => ChatReply(
+    intent: json['intent'] as String,
+    topic: json['topic'] as String,
+    lang: json['lang'] as String,
+    text: json['text'] as String,
+    route: json['route'] == null
+        ? null
+        : RouteResult.fromJson(json['route'] as Map<String, dynamic>),
+    phrases: [
+      for (final p in json['phrases'] as List)
+        ChatPhrase.fromJson(p as Map<String, dynamic>),
+    ],
+    options: [
+      for (final o in json['options'] as List)
+        StationRef.fromJson(o as Map<String, dynamic>),
+    ],
+    context: json['context'] as Map<String, dynamic>,
+  );
+
+  /// 답의 종류 (route, faq, phrase, …)와 세부 종류. 화면은 이 값을 몰라도 그릴 수 있다.
+  final String intent;
+  final String topic;
+
+  /// 답한 언어: 'ko' 또는 'en'
+  final String lang;
+
+  /// 보여 줄 답. 줄바꿈이 들어 있을 수 있다.
+  final String text;
+
+  /// 경로를 찾았을 때만 있다.
+  final RouteResult? route;
+  final List<ChatPhrase> phrases;
+
+  /// 어느 역인지 골라야 할 때의 후보. 고른 역의 이름을 다음 메시지로 보내면 된다.
+  final List<StationRef> options;
+
+  /// 다음 요청에 그대로 돌려보낼 값 (이어 묻기용). 앱은 안을 들여다보지 않는다.
+  final Map<String, dynamic> context;
 }
 
 /// 초 → 분 (반올림). 서버 AI 설명과 같은 방식.
@@ -332,6 +410,23 @@ class ApiClient {
       timeout: const Duration(seconds: 15),
     );
     return json['explanation'] as String;
+  }
+
+  /// POST /chat. 챗봇에게 [message]를 보내고 답을 받는다.
+  /// [lang]은 사용자가 쓴 언어를 알 수 없을 때(역 이름만 보냈을 때 등) 서버가 답할 언어:
+  /// 첫 메시지는 앱의 언어 설정, 그 뒤로는 직전 답의 [ChatReply.lang]을 넣는다.
+  /// [context]에는 직전 답의 [ChatReply.context]를 그대로 넣는다. 첫 메시지면 넣지 않는다.
+  Future<ChatReply> chat({
+    required String message,
+    required String lang,
+    Map<String, dynamic>? context,
+  }) async {
+    final json = await _post('/chat', {
+      'message': message,
+      'lang': lang,
+      'context': ?context, // 없으면(null) 이 항목을 아예 보내지 않는다
+    });
+    return ChatReply.fromJson(json);
   }
 
   Future<Map<String, dynamic>> _get(String path) =>

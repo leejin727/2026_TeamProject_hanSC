@@ -317,4 +317,146 @@ void main() {
     serverUp = true; // 실패한 결과를 저장해 두지 않았는지 확인
     expect((await api.stations('ko')).length, 3);
   });
+
+  test('챗봇: 첫 메시지는 context 없이 보내고, 경로가 든 답을 읽는다', () async {
+    late Map<String, dynamic> sentBody;
+    final api = ApiClient(
+      baseUrl: 'http://test',
+      client: MockClient((request) async {
+        expect(request.url.path, '/chat');
+        sentBody = jsonDecode(request.body) as Map<String, dynamic>;
+        // docs/api-spec.md 4-2장 응답 모양. route는 2장(POST /routes) 응답과 같다
+        return jsonResponse({
+          'intent': 'route',
+          'topic': 'result',
+          'lang': 'ko',
+          'text': '신도림 → 교대 · 42분 · 환승 1회 (최단 시간)',
+          'route': routeExample,
+          'phrases': [],
+          'options': [],
+          'context': {
+            'start': '101',
+            'end': '207',
+            'criteria': 'time',
+            'asked': null,
+          },
+        });
+      }),
+    );
+
+    final reply = await api.chat(message: '신도림에서 교대까지', lang: 'ko');
+
+    // context 항목이 아예 없다 (null로도 보내지 않는다)
+    expect(sentBody, {'message': '신도림에서 교대까지', 'lang': 'ko'});
+    expect(reply.intent, 'route');
+    expect(reply.topic, 'result');
+    expect(reply.lang, 'ko');
+    expect(reply.text, '신도림 → 교대 · 42분 · 환승 1회 (최단 시간)');
+    expect(reply.route?.criteria, 'time');
+    expect(reply.route?.start.name, '신도림');
+    expect(reply.route?.segments.length, 2);
+    expect(reply.phrases, isEmpty);
+    expect(reply.options, isEmpty);
+    expect(reply.context, {
+      'start': '101',
+      'end': '207',
+      'criteria': 'time',
+      'asked': null,
+    });
+  });
+
+  test('챗봇: 직전 context를 그대로 돌려보내고, 역 선택과 문장 카드를 읽는다', () async {
+    final sent = <Map<String, dynamic>>[];
+    const askedStart = {
+      'start': null,
+      'end': '208',
+      'criteria': 'time',
+      'asked': 'start',
+    };
+    final api = ApiClient(
+      baseUrl: 'http://test',
+      client: MockClient((request) async {
+        final body = jsonDecode(request.body) as Map<String, dynamic>;
+        sent.add(body);
+        if (body['message'] == 'from Jongno to Gangnam') {
+          return jsonResponse({
+            'intent': 'route',
+            'topic': 'choose_station',
+            'lang': 'en',
+            'text': 'Which station do you mean by ‘Jongno’?',
+            'route': null,
+            'phrases': [],
+            'options': [
+              {'id': '107', 'name': 'Jongno 3(sam)-ga'},
+              {'id': '108', 'name': 'Jongno 5(o)-ga'},
+            ],
+            'context': askedStart,
+          });
+        }
+        return jsonResponse({
+          'intent': 'emergency',
+          'topic': 'feel_sick',
+          'lang': body['lang'],
+          'text': '급하면 119에 전화하세요.',
+          'route': null,
+          'phrases': [
+            {
+              'id': 'feel_sick',
+              'korean': '몸이 아파요. 도와주세요.',
+              'meaning': body['lang'] == 'en' ? 'I feel sick.' : null,
+            },
+          ],
+          'options': [],
+          // 진짜 서버처럼: 받은 context를 그대로 돌려주고, 없었으면 빈 context
+          'context':
+              body['context'] ??
+              {'start': null, 'end': null, 'criteria': null, 'asked': null},
+        });
+      }),
+    );
+
+    final first = await api.chat(message: 'from Jongno to Gangnam', lang: 'ko');
+    expect(first.route, isNull);
+    expect(
+      [for (final o in first.options) o.name],
+      ['Jongno 3(sam)-ga', 'Jongno 5(o)-ga'],
+    );
+    expect(first.options.first.id, '107');
+
+    // 직전 답의 context와 언어를 그대로 넣어 보낸다
+    final second = await api.chat(
+      message: 'I feel sick',
+      lang: first.lang,
+      context: first.context,
+    );
+    expect(sent.last, {
+      'message': 'I feel sick',
+      'lang': 'en',
+      'context': askedStart,
+    });
+    expect(second.phrases.single.korean, '몸이 아파요. 도와주세요.');
+    expect(second.phrases.single.meaning, 'I feel sick.');
+    expect(second.context, askedStart); // 길찾기가 아닌 답은 context를 바꾸지 않는다
+
+    final korean = await api.chat(message: '몸이 아파요', lang: 'ko');
+    expect(korean.phrases.single.meaning, isNull); // 한국어로 답할 때는 뜻이 없다
+  });
+
+  test('챗봇을 쓸 수 없으면 CHAT_UNAVAILABLE 오류', () async {
+    final api = ApiClient(
+      baseUrl: 'http://test',
+      client: MockClient(
+        (request) async => jsonResponse({
+          'error': {'code': 'CHAT_UNAVAILABLE', 'message': '지금은 챗봇을 쓸 수 없습니다'},
+        }, 503),
+      ),
+    );
+
+    expect(
+      () => api.chat(message: '안녕', lang: 'ko'),
+      throwsA(
+        isA<ApiException>().having((e) => e.code, 'code', 'CHAT_UNAVAILABLE'),
+      ),
+    );
+  });
 }

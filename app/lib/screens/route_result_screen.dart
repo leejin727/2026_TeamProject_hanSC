@@ -28,11 +28,16 @@ class RouteResultScreen extends StatefulWidget {
     super.key,
     required this.departure,
     required this.arrival,
+    this.criteria = 'time',
   });
 
   /// 사용자가 입력한 역 이름 (예: '신도림', 'Sindorim')
   final String departure;
   final String arrival;
+
+  /// 처음 열어 둘 탭: 'time'(최단시간) 또는 'transfers'(최소환승).
+  /// 챗봇이 찾은 경로를 같은 기준으로 보여 줄 때 쓴다.
+  final String criteria;
 
   @override
   State<RouteResultScreen> createState() => _RouteResultScreenState();
@@ -63,6 +68,8 @@ class _RouteResultScreenState extends State<RouteResultScreen> {
   @override
   void initState() {
     super.initState();
+    final index = _criteriaValues.indexOf(widget.criteria);
+    if (index > 0) _selectedCriteria = index; // 모르는 값이면 첫 탭 그대로
     _stationIds = _findStationIds();
   }
 

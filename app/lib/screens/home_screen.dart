@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../data/favorite_routes.dart';
 import '../data/recent_routes.dart';
+import 'chat_screen.dart';
 import 'favorites_screen.dart';
 import 'meeting_input_screen.dart';
 import 'route_result_screen.dart';
@@ -94,6 +95,14 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  void _openChatScreen() {
+    FocusScope.of(context).unfocus();
+
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute<void>(builder: (context) => const ChatScreen()));
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -180,6 +189,21 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
         const Spacer(),
+        // 챗봇 화면으로 들어가는 버튼. 언어 선택 버튼과 같은 모양(흰 바탕, 테두리, 높이 40)
+        IconButton(
+          onPressed: _openChatScreen,
+          tooltip: '챗봇',
+          style: IconButton.styleFrom(
+            backgroundColor: Colors.white,
+            foregroundColor: _navy,
+            side: const BorderSide(color: _border),
+            minimumSize: const Size(40, 40),
+            padding: EdgeInsets.zero,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+          icon: const Icon(Icons.chat_bubble_outline, size: 18),
+        ),
+        const SizedBox(width: 8),
         const LanguageSelector(),
       ],
     );
