@@ -6,12 +6,14 @@
 
 외국인을 위한 AI 기반 다국어 지하철 길찾기 + 모임역 추천 Android 앱 (명지대 컴퓨터공학 팀프로젝트).
 핵심 기능 3가지: ① 길찾기(최단 시간·최소 환승) ② 다국어 안내(AI가 환승 과정을 문장으로 설명) ③ 모임역 추천(2~4명) + 추천 이유 설명.
+부가 기능: 챗봇 (길찾기와 지하철 이용 안내를 글로 묻고 답하기, `POST /chat`, 2026-11-23 추가).
 
 ## 문서 위치와 우선순위
 
 1. `data/extra/ASSUMPTIONS.md` — 데이터 가정과 팀 결정 사항 (**가장 우선**)
 2. `docs/api-spec.md` — API 명세 (초안)
-3. `docs/concept-design.md`, `docs/proposal.md` — 제출한 설계서 사본 (배경·요구사항 참고용)
+3. `docs/chatbot.md` — 챗봇 (모델, 역 이름 찾기, 답 만들기, 한계)
+4. `docs/concept-design.md`, `docs/proposal.md` — 제출한 설계서 사본 (배경·요구사항 참고용)
 
 설계서에는 "서울 열린데이터광장 실제 지하철 데이터"로 되어 있지만 **현재는 교수님 제공 가상 노선 데이터를 쓴다.** 둘이 다르면 ASSUMPTIONS.md를 따른다.
 
@@ -24,6 +26,7 @@
 | DB | PostgreSQL | `backend/app/db/` |
 | AI | Google Gemini API (서버에서만 호출) | `backend/app/` |
 | 경로 계산 | Dijkstra | `backend/app/routing/` |
+| 챗봇 | 직접 만든 나노 모델 (C++ 실행기, 외부 AI 없음) | `backend/app/chat/` |
 
 ## 폴더 담당 (담당자 폴더 밖을 고쳐야 하면 먼저 사용자에게 알린다)
 
@@ -47,6 +50,7 @@
 - 예외: 주변 시설(`GET /stations/{id}/facilities`)은 실제 데이터가 없어서, 역 이름만 빌려 Gemini가 **예시**를 만든다 (팀 결정 2026-11-18, ASSUMPTIONS.md). 응답에 `ai_generated: true`를 넣고, 앱은 "AI가 만든 예시이며 실제와 다를 수 있음"을 함께 보여 준다. 키는 `GEMINI_FACILITY_API_KEY`를 따로 쓴다.
 - 경로 계산 API와 AI 설명 API는 분리한다. 성능 목표: 경로 2초 이하, AI 설명 12초 이하 (처음 5초에서 2026-11-18 변경: Gemini 응답이 5~11초 걸리는 때가 있어서. 앱은 경로를 먼저 보여 주고 설명만 따로 기다린다).
 - 같은 경로 + 같은 언어의 AI 설명은 저장해 재사용한다 (비용 절감, 총 예산 5만 원).
+- 챗봇(`POST /chat`)은 Gemini를 부르지 않는다. 무엇을 묻는지는 나노 모델이 고르고, 경로는 기존 계산 코드가 계산하고, 답은 `data/chat/replies.json`의 고정 문구다. 대화 내용은 저장하지 않고 로그에도 남기지 않는다. `backend/app/chat/nano/` 안의 파일은 받은 그대로 두고 **고치지 않는다** (ASSUMPTIONS.md "챗봇").
 
 ## 아직 확정되지 않은 사항 — 임의로 정하지 말고 사용자에게 물어볼 것
 
