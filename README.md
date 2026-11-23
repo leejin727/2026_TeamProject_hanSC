@@ -7,10 +7,11 @@
 | 폴더 | 내용 | 담당 |
 |---|---|---|
 | `app/` | Flutter 앱 (Android) | 표혜정 |
-| `backend/` | FastAPI 서버, DB, Gemini 연동 | 이진 |
+| `backend/` | FastAPI 서버, DB, Gemini 연동, 챗봇 | 이진 |
 | `backend/app/routing/` | Dijkstra 경로·모임역 계산 | 표혜정 |
 | `data/raw/` | 교수님 원본 데이터 (**수정 금지**) | - |
 | `data/extra/` | 팀이 만든 보조 데이터 (노선 순서, 역 이름, 환승) | 이진 |
+| `data/chat/` | 챗봇 답 문구 (한국어·영어) | 이진 |
 | `scripts/` | 데이터 검증 등 보조 스크립트 | - |
 | `docs/` | 설계서, API 명세 | 공동 |
 

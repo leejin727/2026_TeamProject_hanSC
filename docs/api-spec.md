@@ -1,6 +1,6 @@
 # SubFit 서버 API 명세 (초안)
 
-> 작성 2026-11-04 · 구현됨: `GET /stations`, `POST /routes` (2026-11-11), `POST /explain`의 `type: "route"` (2026-11-16), `POST /meeting-station` (2026-11-17), `POST /explain`의 `type: "meeting"` (2026-11-17), `GET /stations/{station_id}/facilities` (2026-11-18). 이 문서를 보고 앱에서 가짜 데이터(mock)를 만들 수 있게 하는 것이 목표.
+> 작성 2026-11-04 · 구현됨: `GET /stations`, `POST /routes` (2026-11-11), `POST /explain`의 `type: "route"` (2026-11-16), `POST /meeting-station` (2026-11-17), `POST /explain`의 `type: "meeting"` (2026-11-17), `GET /stations/{station_id}/facilities` (2026-11-18), `POST /chat` (2026-11-23). 이 문서를 보고 앱에서 가짜 데이터(mock)를 만들 수 있게 하는 것이 목표.
 > 데이터 규칙은 `data/extra/ASSUMPTIONS.md`가 우선이다. **(가안)** 표시는 팀 결정 전 임시 값이며, 끝의 [논의 필요](#7-논의-필요)에서 확정한다.
 > 예시 값은 모두 실제 데이터(`stations.xlsx` + `data/extra/*.csv`)로 계산한 값이다.
 
@@ -13,6 +13,7 @@
 | `POST /meeting-station` | 모임역 추천 (2~4명) | – |
 | `POST /explain` | 경로·모임역 결과를 AI가 문장으로 설명 | 12초 이하 (2026-11-18, 처음 5초) |
 | `GET /stations/{station_id}/facilities` | 역 주변 시설 (AI가 만든 예시, 4-1장) | 처음 12초 이하, 저장된 뒤 즉시 |
+| `POST /chat` | 챗봇: 글로 묻고 답하기 (4-2장). Gemini를 부르지 않는다 | 2초 이하 |
 
 경로 계산과 AI 설명은 일부러 나눠 두었다. 앱은 `/routes` 결과를 먼저 화면에 그리고, 설명은 `/explain`으로 따로 받는다. 그래서 AI가 실패해도 경로는 보인다.
 
@@ -40,6 +41,7 @@
 |---|---|---|
 | 역 이름 (`/stations`, `/routes`, `/meeting-station`) | `ko`, `en` | 필수. 데이터에 이 두 언어만 있다. |
 | AI 설명 (`/explain`의 `lang`) | `ko`, `en`, `ja`, `zh-Hans`(중국어 간체), `zh-Hant`(중국어 번체), `vi` | 필수. 설명 문장의 언어 |
+| 챗봇 (`/chat`의 `lang`) | 위와 같은 6가지 | 필수. 앱의 언어 설정. 답 문구는 `ko`·`en`만 있어서 나머지는 영어로 답한다 (4-2장) |
 
 ---
 
@@ -304,6 +306,94 @@ GET /stations/705/facilities?lang=ko
 
 ---
 
+## 4-2. POST /chat — 챗봇
+
+> 2026-11-23 추가. 글로 묻고 답한다. **Gemini를 부르지 않는다.** 무엇을 묻는지는 직접 만든 작은 모델이 고르고, 경로는 `/routes`와 같은 계산을 쓰고, 답 문장은 미리 써 둔 문구(`data/chat/replies.json`)다. 모델과 역 이름 찾기는 `docs/chatbot.md`에 설명이 있다.
+
+**요청**
+
+```json
+{"message": "신도림에서 강남까지 어떻게 가?", "lang": "ko", "context": null}
+```
+
+| 필드 | 설명 |
+|---|---|
+| `message` | 필수. 사용자가 쓴 글. 앞뒤 빈칸을 뗀 뒤 1~300자 |
+| `lang` | 필수. 앱의 언어 설정 (`ko`, `en`, `ja`, `zh-Hans`, `zh-Hant`, `vi`). 답은 **사용자가 쓴 언어**(한국어·영어)로 한다. 역 이름만 보냈을 때처럼 쓴 언어를 알 수 없으면 이 값을 따르고, 이 값이 `ko`·`en`이 아니면 영어로 답한다 |
+| `context` | 선택. **직전 응답의 `context`를 그대로** 넣는다. 첫 메시지이거나 대화를 새로 시작할 때는 빼거나 `null` |
+
+**응답 200**
+
+```json
+{
+  "intent": "route",
+  "topic": "result",
+  "lang": "ko",
+  "text": "신도림 → 강남 · 51분 · 환승 2회 (최단 시간)",
+  "route": {"criteria": "time", "start": {"id": "101", "name": "신도림"}, "end": {"id": "208", "name": "강남"},
+            "total_sec": 3060, "transfer_count": 2, "cost_won": 4620, "…": "나머지 필드는 2장 응답과 같다"},
+  "phrases": [],
+  "options": [],
+  "context": {"start": "101", "end": "208", "criteria": "time", "asked": null}
+}
+```
+
+| 필드 | 설명 |
+|---|---|
+| `intent` | 답의 종류: `route`, `faq`, `phrase`, `help`, `emergency`, `out_of_scope`, `greet`, `thanks` |
+| `topic` | 세부 종류 (아래 표). 앱은 이 값을 몰라도 화면을 그릴 수 있다 |
+| `lang` | 답한 언어. `ko` 또는 `en` |
+| `text` | 사용자에게 보여 줄 답. 줄바꿈(`\n`)이 들어 있을 수 있다 |
+| `route` | 경로를 찾았을 때(`topic: "result"`)만 있고, 아니면 `null`. **2장 `POST /routes` 응답과 같은 모양**이다 |
+| `phrases` | 역무원에게 보여 줄 한국어 문장 카드. 없으면 `[]`. 각각 `{"id", "korean", "meaning"}`이고, `meaning`은 영어로 답할 때만 뜻이 들어가며 한국어로 답할 때는 `null` |
+| `options` | 어느 역인지 골라야 할 때(`topic: "choose_station"`)의 역 객체 목록. 없으면 `[]`. 사용자가 하나를 고르면 앱은 그 역 이름을 `message`로 보내면 된다 |
+| `context` | 다음 요청에 그대로 돌려보낼 값. 앱은 안을 들여다볼 필요가 없다 |
+
+| `intent` | `topic` | 뜻 |
+|---|---|---|
+| `route` | `result` | 경로를 찾았다 (`route` 있음) |
+| | `ask_start`, `ask_end`, `ask_both` | 출발역 / 도착역 / 둘 다를 되묻는다 |
+| | `choose_station` | 말한 이름에 맞는 역이 여럿이다 (`options` 있음) |
+| | `same_station` | 출발역과 도착역이 같아서 도착역을 되묻는다 |
+| | `no_route` | 두 역을 잇는 경로가 없다. 지금 데이터에서는 나지 않는다 |
+| `faq` | `ticket`, `gate`, `transfer_ticket`, `direction_sign`, `announcement`, `last_train`, `lost_item`, `help_desk` | 이용 안내. `last_train`은 "첫차·막차 정보가 없다"고 답한다 |
+| `phrase` | `list` / `which_side`, `transfer_where`, `buy_ticket_help`, `lost_item`, `feel_sick`, `no_korean` | 문장 카드 전체 / 하나 |
+| `help` | `lost` | 길을 잃었을 때 안내 |
+| `emergency` | `feel_sick`, `lost_item` | 아플 때(119) / 도난(112) 안내와 문장 카드 |
+| `out_of_scope` | `realtime`, `real_seoul`, `unrelated`, `abuse`, `station_facility` | 답하지 않는 주제라는 안내 |
+| | `not_understood` | 이해하지 못했다 (모델의 확신이 낮음) |
+| | `unsupported_language` | 한국어·영어가 아닌 언어로 물었다. 모델이 이 언어들을 믿을 수 없게 판단해서, 의도와 상관없이 "한국어나 영어로 물어봐 주세요"라고 답한다 |
+| `greet` / `thanks` | `hello` / `welcome` | 인사 / 감사 인사에 대한 답 |
+
+**`context`와 이어 묻기**
+
+서버는 대화를 기억하지 않는다. 메시지 내용을 저장하지 않고 로그에도 남기지 않는다. 이어 묻기에 필요한 값은 `context`에 담겨 오가며, 앱은 마지막 응답의 `context`만 들고 있으면 된다.
+
+| 필드 | 설명 |
+|---|---|
+| `start`, `end` | 직전 길찾기의 출발·도착역 ID, 또는 지금까지 들은 역. 없으면 `null` |
+| `criteria` | `time` 또는 `transfers`. 없으면 `null` |
+| `asked` | 직전 답에서 되물은 역: `start`, `end`, 없으면 `null`. 다음 메시지가 역 이름뿐이면 이 자리에 넣는다 |
+
+| 순서 | `message` | 답 (`topic`) | 응답의 `context` |
+|---|---|---|---|
+| 1 | 신도림에서 강남까지 어떻게 가? | 신도림 → 강남 · 51분 · 환승 2회 (`result`) | `{"start": "101", "end": "208", "criteria": "time", "asked": null}` |
+| 2 | 그럼 환승 없이는? | 신도림 → 강남 · 58분 · 환승 0회 (`result`) | `criteria`가 `"transfers"`로 바뀜 |
+| 3 | 반대로는? | 강남 → 신도림 · 58분 · 환승 0회 (`result`) | `start`와 `end`가 바뀜 |
+| 새 대화 1 | 강남 가는 법 | 강남까지 가는 길을 찾을게요. 어디에서 출발하나요? (`ask_start`) | `{"start": null, "end": "208", "criteria": "time", "asked": "start"}` |
+| 새 대화 2 | 신도림 | 신도림 → 강남 · 51분 · 환승 2회 (`result`) | `asked`가 `null`로 돌아감 |
+
+- "그럼 …는?", "반대로는?" 같은 이어 묻는 말이거나 직전에 역을 되물었을 때만 `context`의 역·기준을 가져온다. 새 질문("잠실 가는 법")은 앞 대화의 출발역을 쓰지 않고 다시 묻는다.
+- 역을 하나만 말하고 출발인지 도착인지 알 수 없으면 도착역으로 본다.
+- 오타·줄임말인데 맞는 역이 하나면 그 역으로 답하고, `text` 첫 줄에 `‘신도릠’ → 신도림 (이 역으로 이해했어요)`를 덧붙인다 (팀 결정 2026-11-23). 여럿이면 `choose_station`.
+- 길찾기가 아닌 답(`faq`, `greet` 등)은 `context`를 바꾸지 않고 그대로 돌려준다.
+
+**오류:** `message`가 비었거나 300자 초과, `lang`·`message` 없음, `context.criteria`·`context.asked` 값이 틀림 → 422 `INVALID_REQUEST`. `lang`이 위 6개가 아님 → 400 `VALIDATION_ERROR`. `context`의 역 ID가 없는 역 → 400 `STATION_NOT_FOUND`. 모델 실행기를 쓸 수 없음 → 503 `CHAT_UNAVAILABLE` (이때도 다른 API는 정상이다).
+
+**한계:** "네"·"아니요"는 알아듣지 못한다 (그래서 예/아니요로 답할 질문은 하지 않는다). "사당 말고 이수로 바꿔줘"는 사당 → 이수 경로로 계산된다. 그 밖의 한계는 `docs/chatbot.md` 8장.
+
+---
+
 ## 5. 오류 응답
 
 모든 API의 오류는 같은 모양으로 온다.
@@ -326,17 +416,18 @@ GET /stations/705/facilities?lang=ko
 
 | HTTP | `code` | 언제 | 해당 API | `details` 예 |
 |---|---|---|---|---|
-| 400 | `STATION_NOT_FOUND` | 없는 역 ID | `/routes`, `/meeting-station`, `/explain`, `/stations/{id}/facilities` | `{"station_id": "999"}` |
+| 400 | `STATION_NOT_FOUND` | 없는 역 ID | `/routes`, `/meeting-station`, `/explain`, `/stations/{id}/facilities`, `/chat`(`context`의 역) | `{"station_id": "999"}` |
 | 400 | `SAME_STATION` | 출발역 = 도착역 | `/routes` | `{"station_id": "101"}` |
 | 400 | `INVALID_PARTICIPANT_COUNT` | 출발역이 2개 미만이거나 4개 초과 | `/meeting-station`, `/explain` | `{"count": 5, "min": 2, "max": 4}` |
 | 400 | `UNSUPPORTED_LANGUAGE` | 역 이름 `lang`이 ko·en이 아님 **(가안, 논의 필요 9)** | 전체 (`/explain`은 `request.lang`) | `{"lang": "ja", "supported": ["ko", "en"]}` |
-| 400 | `VALIDATION_ERROR` | `/explain`의 `type`·`lang`·`request` 값이 틀림 (4장), 주변 시설의 `lang`이 틀림 (4-1장) | `/explain`, `/stations/{id}/facilities` | `{"field": "lang", "supported": [...]}` |
+| 400 | `VALIDATION_ERROR` | `/explain`의 `type`·`lang`·`request` 값이 틀림 (4장), 주변 시설·챗봇의 `lang`이 틀림 (4-1·4-2장) | `/explain`, `/stations/{id}/facilities`, `/chat` | `{"field": "lang", "supported": [...]}` |
 | 404 | `NOT_FOUND` | 없는 주소로 요청 (예: `GET /route`) | 전체 | 없음 |
 | 404 | `NO_ROUTE` | 두 역을 잇는 경로가 없음. 지금 데이터는 모든 역이 이어져 있어 나지 않는다 | `/routes` | `{"start_station_id": "101", "end_station_id": "207"}` |
 | 404 | `NO_MEETING_STATION` | 모든 참여자가 갈 수 있는 역이 없음. 지금 데이터에서는 나지 않는다 | `/meeting-station`, `/explain` | 없음 |
 | 405 | `METHOD_NOT_ALLOWED` | 주소는 있지만 허용하지 않는 방식 (예: `GET /routes`) | 전체 | 없음 |
 | 422 | `INVALID_REQUEST` | 필수 값 누락, 타입 오류(예: 숫자 역 ID), `criteria`의 잘못된 값, JSON 형식 오류 | 전체 | `{"field": "criteria"}` |
 | 503 | `AI_UNAVAILABLE` | Gemini 호출 실패·시간 초과·과부하, 서버에 API 키 없음, 주변 시설 답 모양이 틀림 | `/explain`, `/stations/{id}/facilities` | 없음 |
+| 503 | `CHAT_UNAVAILABLE` | 챗봇 모델 실행기를 쓸 수 없음 (그 컴퓨터용 실행기가 없거나 안 돌아감, `docs/chatbot.md` 7장) | `/chat` | 없음 |
 | 500 | `INTERNAL_ERROR` | 그 밖의 서버 오류 | 전체 | 없음 |
 
 구현 메모 (서버 담당): FastAPI는 입력 검증 오류를 `{"detail": [...]}`, 없는 주소를 `{"detail": "Not Found"}` 모양으로 돌려준다. `backend/app/errors.py`의 오류 처리기가 이것들과 예상 못 한 오류를 모두 위 형식으로 바꾼다. 코드에서 직접 오류를 낼 때는 `AppError(400, "STATION_NOT_FOUND", "...", {"station_id": "999"})`를 쓴다.

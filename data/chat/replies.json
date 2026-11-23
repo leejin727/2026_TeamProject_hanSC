@@ -1,0 +1,178 @@
+{
+ "route": {
+  "result": {
+   "ko": "{start} → {end} · {minutes}분 · 환승 {transfers}회 ({criteria})",
+   "en": "{start} → {end} · {minutes} min · Transfers: {transfers} ({criteria})"
+  },
+  "criteria_time": {
+   "ko": "최단 시간",
+   "en": "fastest"
+  },
+  "criteria_transfers": {
+   "ko": "최소 환승",
+   "en": "fewest transfers"
+  },
+  "understood_as": {
+   "ko": "‘{written}’ → {station} (이 역으로 이해했어요)",
+   "en": "‘{written}’ → {station} (I took it as this station)"
+  },
+  "ask_start": {
+   "ko": "{end}까지 가는 길을 찾을게요. 어디에서 출발하나요?",
+   "en": "Where are you starting from? (Destination: {end})"
+  },
+  "ask_end": {
+   "ko": "{start}에서 출발하는군요. 어디로 가시나요?",
+   "en": "Where would you like to go? (Starting from {start})"
+  },
+  "ask_both": {
+   "ko": "어디에서 어디로 가시나요? 예: ‘신도림에서 강남까지’",
+   "en": "Where from and where to? For example: ‘Sindorim to Gangnam’"
+  },
+  "choose_station": {
+   "ko": "‘{written}’ — 어느 역을 말씀하시나요?",
+   "en": "Which station do you mean by ‘{written}’?"
+  },
+  "same_station": {
+   "ko": "출발역과 도착역이 같아요 ({station}). 어디로 가시나요?",
+   "en": "The start and the destination are the same ({station}). Where would you like to go?"
+  },
+  "no_route": {
+   "ko": "두 역을 잇는 경로를 찾지 못했어요.",
+   "en": "I couldn't find a route between the two stations."
+  }
+ },
+ "faq": {
+  "ticket": {
+   "ko": "교통카드는 편의점이나 역 안 발매기에서 살 수 있어요. 한 번만 탈 때는 발매기에서 일회용 승차권을 사면 됩니다. 어려우면 역무원에게 아래 문장을 보여 주세요.",
+   "en": "You can buy a transit card at a convenience store or at a ticket machine in the station. For a single ride, buy a single-journey ticket at the machine. If it's difficult, show the sentence below to the station staff.",
+   "phrase": "buy_ticket_help"
+  },
+  "gate": {
+   "ko": "개찰구에서는 교통카드나 승차권을 단말기에 대면 문이 열려요. 열리지 않으면 잔액이 부족하거나 카드가 잘 읽히지 않은 것이니, 다시 대 보거나 역무원에게 알리세요.",
+   "en": "At the gate, tap your transit card or ticket on the reader and the gate opens. If it doesn't open, your balance may be low or the card wasn't read. Tap again or tell the station staff."
+  },
+  "transfer_ticket": {
+   "ko": "갈아탈 때는 표를 새로 사지 않아도 돼요. 역 안의 환승 안내를 따라 다른 노선 승강장으로 가면 됩니다.",
+   "en": "You don't need a new ticket when you transfer. Follow the transfer signs inside the station to the platform of the other line."
+  },
+  "direction_sign": {
+   "ko": "승강장 안내판에는 열차가 가는 방면이 적혀 있어요. 이 앱의 길찾기 결과에 나오는 방면(다음 역)과 같은 쪽에서 타면 됩니다. 헷갈리면 역무원에게 아래 문장을 보여 주세요.",
+   "en": "Platform signs show the direction the train is heading. Take the side that matches the direction (the next station) shown in this app's route result. If you're not sure, show the sentence below to the station staff.",
+   "phrase": "which_side"
+  },
+  "announcement": {
+   "ko": "열차 안에서는 다음 역을 방송과 화면으로 알려 줘요. 내릴 역 이름을 미리 확인해 두고, 길찾기 결과의 역 순서를 보면서 가면 놓치지 않아요.",
+   "en": "On the train, the next station is announced and shown on the screen. Check the name of your stop in advance and follow the station list in the route result so you don't miss it."
+  },
+  "last_train": {
+   "ko": "이 앱에는 첫차·막차 시간 정보가 없어요. 역 안 안내문이나 역무원에게 확인해 주세요.",
+   "en": "This app doesn't have first and last train times. Please check the notices in the station or ask the station staff."
+  },
+  "lost_item": {
+   "ko": "물건을 잃어버렸다면 가까운 역무원에게 바로 알리세요. 탔던 노선과 시간, 내린 역을 말하면 찾는 데 도움이 돼요. 아래 문장을 보여 줘도 됩니다.",
+   "en": "If you lost something, tell the nearest station staff right away. It helps to tell them the line, the time, and the station where you got off. You can also show the sentence below.",
+   "phrase": "lost_item"
+  },
+  "help_desk": {
+   "ko": "도움이 필요하면 역무실이나 안내 창구의 역무원에게 물어보세요. 한국어가 어려우면 아래 문장을 보여 주세요.",
+   "en": "If you need help, ask the staff at the station office or the information desk. If Korean is difficult, show the sentence below.",
+   "phrase": "no_korean"
+  }
+ },
+ "phrase": {
+  "list": {
+   "ko": "역무원이나 주변 사람에게 보여 줄 수 있는 한국어 문장이에요.",
+   "en": "Here are Korean sentences you can show to the station staff or people nearby."
+  },
+  "one": {
+   "ko": "이 문장을 보여 주세요.",
+   "en": "Show this sentence."
+  }
+ },
+ "help": {
+  "lost": {
+   "ko": "괜찮아요, 같이 찾아봐요. 지금 있는 역 이름(승강장 벽이나 안내판에 적혀 있어요)과 가려는 역을 알려 주세요. 예: ‘신당에서 합정까지’. 급하면 가까운 역무원에게 도움을 청하세요.",
+   "en": "Don't worry, let's figure it out. Tell me the station you're at now (its name is on the platform walls and signs) and where you want to go. For example: ‘Sindang to Hapjeong’. If it's urgent, ask the nearest station staff for help."
+  }
+ },
+ "emergency": {
+  "feel_sick": {
+   "ko": "급하면 119에 전화하거나, 가까운 역무원이나 주변 사람에게 바로 알리세요. 아래 문장을 보여 주면 됩니다.",
+   "en": "If it's urgent, call 119 or tell the nearest station staff or people around you right away. You can show the sentence below.",
+   "phrase": "feel_sick"
+  },
+  "lost_item": {
+   "ko": "도난이나 위협을 당했다면 112(경찰)에 신고하거나 가까운 역무원에게 바로 알리세요. 아래 문장을 보여 줘도 됩니다.",
+   "en": "If something was stolen or you feel threatened, call 112 (police) or tell the nearest station staff right away. You can also show the sentence below.",
+   "phrase": "lost_item"
+  }
+ },
+ "out_of_scope": {
+  "realtime": {
+   "ko": "실시간 도착·지연·혼잡 정보는 이 앱에 없어요. 역 안 전광판이나 안내방송을 확인해 주세요.",
+   "en": "This app doesn't have real-time arrival, delay, or crowding information. Please check the screens or announcements in the station."
+  },
+  "real_seoul": {
+   "ko": "이 앱의 노선도는 가상 노선이라, 실제 서울의 장소·요금·시간표는 안내하지 못해요. 이 앱에 있는 역끼리의 길찾기는 도와드릴 수 있어요.",
+   "en": "This app uses a fictional subway map, so I can't tell you about real places, fares, or timetables in Seoul. I can help you find routes between the stations in this app."
+  },
+  "unrelated": {
+   "ko": "저는 지하철 길찾기와 이용 안내만 도와드릴 수 있어요. 예: ‘신도림에서 강남까지 어떻게 가?’",
+   "en": "I can only help with subway routes and how to use the subway. For example: ‘How do I get from Sindorim to Gangnam?’"
+  },
+  "abuse": {
+   "ko": "불편을 드렸다면 죄송해요. 지하철 길찾기나 이용 방법이 궁금하면 말씀해 주세요.",
+   "en": "I'm sorry if I caused any trouble. Let me know if you have questions about subway routes or how to use the subway."
+  },
+  "station_facility": {
+   "ko": "화장실·엘리베이터·출구 같은 역 안 시설의 위치는 안내하지 못해요. 역 안 안내도를 보거나 역무원에게 물어봐 주세요.",
+   "en": "I can't tell you where facilities like restrooms, elevators, or exits are inside a station. Please check the station map or ask the station staff."
+  },
+  "not_understood": {
+   "ko": "잘 이해하지 못했어요. 이렇게 물어봐 주세요: ‘신도림에서 강남까지 어떻게 가?’, ‘교통카드는 어디서 사요?’",
+   "en": "Sorry, I didn't understand. Try asking like this: ‘How do I get from Sindorim to Gangnam?’ or ‘Where can I buy a ticket?’"
+  },
+  "unsupported_language": {
+   "ko": "아직은 한국어와 영어만 이해할 수 있어요. 한국어나 영어로 물어봐 주세요.",
+   "en": "For now I can only understand Korean and English. Please ask in Korean or English."
+  }
+ },
+ "greet": {
+  "hello": {
+   "ko": "안녕하세요! 지하철 길찾기와 이용 방법을 도와드려요. 예: ‘신도림에서 강남까지 어떻게 가?’",
+   "en": "Hello! I can help with subway routes and how to use the subway. For example: ‘How do I get from Sindorim to Gangnam?’"
+  }
+ },
+ "thanks": {
+  "welcome": {
+   "ko": "천만에요. 좋은 하루 보내세요!",
+   "en": "You're welcome. Have a nice day!"
+  }
+ },
+ "phrases": {
+  "which_side": {
+   "korean": "어느 쪽 승강장에서 타야 하나요?",
+   "en": "Which platform should I take?"
+  },
+  "transfer_where": {
+   "korean": "어디에서 갈아타야 하나요?",
+   "en": "Where should I transfer?"
+  },
+  "buy_ticket_help": {
+   "korean": "표 사는 것을 도와주세요.",
+   "en": "Please help me buy a ticket."
+  },
+  "lost_item": {
+   "korean": "물건을 잃어버렸어요. 도와주세요.",
+   "en": "I lost my belongings. Please help me."
+  },
+  "feel_sick": {
+   "korean": "몸이 안 좋아요. 도와주세요.",
+   "en": "I don't feel well. Please help me."
+  },
+  "no_korean": {
+   "korean": "한국어를 잘 못해요. 영어로 말씀해 주실 수 있나요?",
+   "en": "I don't speak Korean well. Could you speak English?"
+  }
+ }
+}

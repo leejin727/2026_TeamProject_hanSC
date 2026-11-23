@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 
-from app.api import explain, facilities, meeting, routes, stations
+from app.api import chat, explain, facilities, meeting, routes, stations
 from app.config import DATA_DIR
 from app.errors import register_error_handlers
 from app.routing.graph_builder import load_network
@@ -30,6 +30,7 @@ app.include_router(facilities.router)
 app.include_router(routes.router)
 app.include_router(meeting.router)
 app.include_router(explain.router)
+app.include_router(chat.router)
 
 
 @app.middleware("http")
