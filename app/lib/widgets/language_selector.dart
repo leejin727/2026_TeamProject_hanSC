@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../localization/app_strings.dart';
+
 enum AppLanguage {
   korean('ko', '한국어'),
   english('en', 'English'),
@@ -37,7 +39,7 @@ class LanguageSelector extends StatelessWidget {
       valueListenable: LanguageSettings.selected,
       builder: (context, selectedLanguage, child) {
         return PopupMenuButton<AppLanguage>(
-          tooltip: '언어 선택',
+          tooltip: AppStrings.text('언어 선택', language: selectedLanguage),
           position: PopupMenuPosition.under,
           offset: const Offset(0, 4),
           color: Colors.white,
