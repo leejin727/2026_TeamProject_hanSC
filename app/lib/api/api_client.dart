@@ -4,20 +4,20 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
-/// 서버 주소.
-/// - 안드로이드 에뮬레이터: 10.0.2.2 = 에뮬레이터를 실행한 내 컴퓨터
-/// - iPhone 시뮬레이터 등: localhost
+// Railway에 올린 SubFit 서버. 서버 주소가 바뀌면 여기만 고친다.
+const _railwayServer = 'https://2026teamprojecthansc-production.up.railway.app';
+
+/// 서버 주소. 기본은 Railway 서버라서 주소를 붙이지 않고 `flutter run`만 해도 된다
+/// (iPhone 시뮬레이터, 안드로이드 에뮬레이터, 크롬, 실제 휴대폰 모두).
+/// 내 컴퓨터에서 켠 서버로 시험할 때만 주소를 붙인다:
+/// - iPhone 시뮬레이터·크롬: flutter run --dart-define=API_BASE_URL=http://localhost:8000
+/// - 안드로이드 에뮬레이터: flutter run --dart-define=API_BASE_URL=http://10.0.2.2:8000 (10.0.2.2 = 에뮬레이터를 실행한 내 컴퓨터)
 /// - 실제 휴대폰: flutter run --dart-define=API_BASE_URL=http://내컴퓨터IP:8000
 String get defaultApiBaseUrl {
   const override = String.fromEnvironment('API_BASE_URL');
-  if (override.isNotEmpty) return override;
-  if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
-    return 'http://10.0.2.2:8000';
-  }
-  return 'http://localhost:8000';
+  return override.isNotEmpty ? override : _railwayServer;
 }
 
 /// 서버 오류. [code]는 api-spec.md 5장의 오류 코드이거나, 서버에 닿지 못했을 때 'NETWORK'.
