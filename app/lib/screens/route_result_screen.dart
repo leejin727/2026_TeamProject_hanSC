@@ -6,6 +6,7 @@ import '../data/subway_map_data.dart';
 import '../widgets/language_selector.dart';
 import 'favorites_screen.dart';
 import 'subway_map_screen.dart';
+import '../localization/app_strings.dart';
 
 const _navy = Color(0xFF152952);
 const _textColor = Color(0xFF293F64);
@@ -192,9 +193,9 @@ class _RouteResultScreenState extends State<RouteResultScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const Text(
-                    '정차역 목록',
-                    style: TextStyle(
+                  Text(
+                    AppStrings.text('정차역 목록'),
+                    style: const TextStyle(
                       color: _textColor,
                       fontSize: 20,
                       fontWeight: FontWeight.w800,
@@ -237,10 +238,7 @@ class _RouteResultScreenState extends State<RouteResultScreen> {
                           ),
                           trailing: Text(
                             '$line호선',
-                            style: const TextStyle(
-                              color: _muted,
-                              fontSize: 12,
-                            ),
+                            style: const TextStyle(color: _muted, fontSize: 12),
                           ),
                         );
                       },
@@ -255,7 +253,7 @@ class _RouteResultScreenState extends State<RouteResultScreen> {
                       minimumSize: const Size(double.infinity, 48),
                       side: const BorderSide(color: _border),
                     ),
-                    child: const Text('닫기'),
+                    child: Text(AppStrings.text('닫기')),
                   ),
                 ],
               ),
@@ -324,9 +322,9 @@ class _RouteResultScreenState extends State<RouteResultScreen> {
       const SizedBox(height: 16),
       _buildExplanationCard(),
       const SizedBox(height: 22),
-      const Text(
-        '상세 경로',
-        style: TextStyle(
+      Text(
+        AppStrings.text('상세 경로'),
+        style: const TextStyle(
           color: _textColor,
           fontSize: 16,
           fontWeight: FontWeight.w800,
@@ -345,9 +343,10 @@ class _RouteResultScreenState extends State<RouteResultScreen> {
             borderRadius: BorderRadius.circular(12),
           ),
         ),
-        child: const Text(
-          '정차역 모두 보기',
-          style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+        child: Text(
+          AppStrings.text('정차역 모두 보기'),
+          textAlign: TextAlign.center,
+          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
         ),
       ),
     ];
@@ -387,7 +386,7 @@ class _RouteResultScreenState extends State<RouteResultScreen> {
               foregroundColor: _navy,
               side: const BorderSide(color: _border),
             ),
-            child: const Text('다시 시도'),
+            child: Text(AppStrings.text('다시 시도')),
           ),
         ],
       ),
@@ -401,14 +400,14 @@ class _RouteResultScreenState extends State<RouteResultScreen> {
         children: [
           IconButton(
             onPressed: () => Navigator.of(context).pop(),
-            tooltip: '뒤로가기',
+            tooltip: AppStrings.text('뒤로가기'),
             icon: const Icon(Icons.chevron_left, color: _navy),
           ),
-          const Expanded(
+          Expanded(
             child: Text(
-              '경로 결과',
+              AppStrings.text('경로 결과'),
               textAlign: TextAlign.center,
-              style: TextStyle(
+              style: const TextStyle(
                 color: _textColor,
                 fontSize: 17,
                 fontWeight: FontWeight.w800,
@@ -428,12 +427,14 @@ class _RouteResultScreenState extends State<RouteResultScreen> {
                   FavoriteRoutes.toggle(widget.departure, widget.arrival);
 
                   _showMessage(
-                    isFavorite
-                        ? '즐겨찾기에서 해제했습니다.'
-                        : '즐겨찾기에 추가했습니다. 앱 재시작 시 초기화됩니다.',
+                    AppStrings.text(
+                      isFavorite
+                          ? '즐겨찾기에서 해제했습니다.'
+                          : '즐겨찾기에 추가했습니다. 앱 재시작 시 초기화됩니다.',
+                    ),
                   );
                 },
-                tooltip: isFavorite ? '즐겨찾기 해제' : '즐겨찾기 선택',
+                tooltip: AppStrings.text(isFavorite ? '즐겨찾기 해제' : '즐겨찾기 선택'),
                 icon: Icon(
                   isFavorite ? Icons.star_rounded : Icons.star_border_rounded,
                   color: _navy,
@@ -513,7 +514,8 @@ class _RouteResultScreenState extends State<RouteResultScreen> {
             ),
           ),
           child: Text(
-            label,
+            AppStrings.text(label),
+            textAlign: TextAlign.center,
             style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
           ),
         ),
@@ -611,16 +613,18 @@ class _RouteResultScreenState extends State<RouteResultScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
+          Row(
             children: [
-              Icon(Icons.auto_awesome, color: _navy, size: 18),
-              SizedBox(width: 6),
-              Text(
-                'AI 경로 설명',
-                style: TextStyle(
-                  color: _textColor,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w800,
+              const Icon(Icons.auto_awesome, color: _navy, size: 18),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  AppStrings.text('AI 경로 설명'),
+                  style: const TextStyle(
+                    color: _textColor,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
               ),
             ],
@@ -630,17 +634,19 @@ class _RouteResultScreenState extends State<RouteResultScreen> {
             future: _explanationFor(_criteria),
             builder: (context, snapshot) {
               if (snapshot.connectionState != ConnectionState.done) {
-                return const Row(
+                return Row(
                   children: [
-                    SizedBox(
+                    const SizedBox(
                       width: 16,
                       height: 16,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     ),
-                    SizedBox(width: 10),
-                    Text(
-                      '설명을 만드는 중입니다…',
-                      style: TextStyle(color: _muted, fontSize: 13),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        AppStrings.text('설명을 만드는 중입니다…'),
+                        style: const TextStyle(color: _muted, fontSize: 13),
+                      ),
                     ),
                   ],
                 );
@@ -660,7 +666,7 @@ class _RouteResultScreenState extends State<RouteResultScreen> {
                     TextButton.icon(
                       onPressed: _retryExplanation,
                       icon: const Icon(Icons.refresh, size: 18),
-                      label: const Text('다시 시도'),
+                      label: Text(AppStrings.text('다시 시도')),
                       style: TextButton.styleFrom(
                         foregroundColor: _navy,
                         padding: EdgeInsets.zero,
@@ -973,7 +979,11 @@ class _RouteResultScreenState extends State<RouteResultScreen> {
                 child: Icon(icon, size: 23),
               ),
               const SizedBox(height: 3),
-              Text(label, style: const TextStyle(fontSize: 10)),
+              Text(
+                AppStrings.text(label),
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 10, height: 1.3),
+              ),
             ],
           ),
         ),

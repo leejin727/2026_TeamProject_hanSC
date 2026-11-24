@@ -8,6 +8,47 @@ class AppStrings {
   //
   // 한국어는 각 항목의 키를 그대로 사용합니다.
   static const Map<String, List<String>> _translations = {
+    '경로 결과': ['Route results', 'ルート検索結果', '路线结果', '路線結果', 'Kết quả tìm đường'],
+    '뒤로가기': ['Back', '戻る', '返回', '返回', 'Quay lại'],
+    '상세 경로': ['Route details', 'ルート詳細', '路线详情', '路線詳情', 'Chi tiết lộ trình'],
+    '정차역 모두 보기': [
+      'View all stops',
+      'すべての停車駅を見る',
+      '查看所有停靠站',
+      '查看所有停靠站',
+      'Xem tất cả ga dừng',
+    ],
+    '정차역 목록': ['All stops', '停車駅一覧', '停靠站列表', '停靠站清單', 'Danh sách ga dừng'],
+    '다시 시도': ['Try again', '再試行', '重试', '重試', 'Thử lại'],
+    'AI 경로 설명': [
+      'AI route guide',
+      'AIルート案内',
+      'AI路线说明',
+      'AI路線說明',
+      'Hướng dẫn lộ trình AI',
+    ],
+    '설명을 만드는 중입니다…': [
+      'Preparing your guide…',
+      '案内を作成しています…',
+      '正在生成说明…',
+      '正在產生說明…',
+      'Đang tạo hướng dẫn…',
+    ],
+    '즐겨찾기에서 해제했습니다.': [
+      'Removed from favorites.',
+      'お気に入りから削除しました。',
+      '已取消收藏。',
+      '已取消收藏。',
+      'Đã xóa khỏi mục yêu thích.',
+    ],
+    '즐겨찾기에 추가했습니다. 앱 재시작 시 초기화됩니다.': [
+      'Added to favorites. Favorites reset when the app restarts.',
+      'お気に入りに追加しました。アプリを再起動するとリセットされます。',
+      '已添加到收藏。重启应用后收藏将重置。',
+      '已加入收藏。重新啟動應用程式後收藏將重設。',
+      'Đã thêm vào mục yêu thích. Danh sách sẽ được đặt lại khi khởi động lại ứng dụng.',
+    ],
+
     '각자의 출발역을 입력하면 만나기 좋은 역을 찾아드려요': [
       'Enter everyone’s starting station to find a place to meet.',
       'それぞれの出発駅から、集まりやすい駅を探します。',
