@@ -5,6 +5,7 @@ import time
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import chat, explain, facilities, meeting, routes, stations
 from app.config import DATA_DIR
@@ -25,6 +26,16 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="SubFit API", lifespan=lifespan)
 register_error_handlers(app)
+# 웹(크롬)에서 실행한 앱도 서버를 부를 수 있게 허용한다 (CORS).
+# 브라우저는 다른 주소의 서버에 JSON을 보내기 전에 OPTIONS 요청으로 먼저 물어보는데,
+# 이 설정이 없으면 그 요청이 405로 거절되어 앱이 서버에 붙지 못한다.
+# 로그인·쿠키를 쓰지 않으므로 모든 주소를 허용하고, allow_credentials는 켜지 않는다.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 app.include_router(stations.router)
 app.include_router(facilities.router)
 app.include_router(routes.router)
