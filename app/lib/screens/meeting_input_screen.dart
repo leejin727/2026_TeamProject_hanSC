@@ -4,6 +4,7 @@ import 'favorites_screen.dart';
 import 'meeting_result_screen.dart';
 import 'subway_map_screen.dart';
 import '../widgets/language_selector.dart';
+import '../localization/app_strings.dart';
 
 const _navy = Color(0xFF152952);
 const _textColor = Color(0xFF293F64);
@@ -34,13 +35,36 @@ class _MeetingInputScreenState extends State<MeetingInputScreen> {
   _RecommendationCriteria _criteria = _RecommendationCriteria.fastest;
 
   @override
+  void initState() {
+    super.initState();
+    LanguageSettings.selected.addListener(_onLanguageChanged);
+  }
+
+  void _onLanguageChanged() {
+    if (!mounted) return;
+    setState(() {});
+  }
+
+  String _personLabel(int index) {
+    if (index == 0) {
+      return AppStrings.text('나');
+    }
+
+    return AppStrings.text('친구 {number}').replaceAll('{number}', '$index');
+  }
+
+  @override
   void dispose() {
+    LanguageSettings.selected.removeListener(_onLanguageChanged);
+
     for (final controller in _controllers) {
       controller.dispose();
     }
+
     for (final controller in _removedControllers) {
       controller.dispose();
     }
+
     super.dispose();
   }
 
@@ -83,9 +107,12 @@ class _MeetingInputScreenState extends State<MeetingInputScreen> {
 
     for (var index = 0; index < _controllers.length; index++) {
       if (_controllers[index].text.trim().isEmpty) {
-        final person = index == 0 ? '나' : '친구 $index';
-        _showMessage('$person의 출발역을 입력해 주세요.');
-        return;
+        final person = _personLabel(index);
+
+        _showMessage(
+          AppStrings.text('{person}의 출발역을 입력해 주세요.')
+              .replaceAll('{person}', person),
+        );
       }
     }
 
@@ -142,18 +169,18 @@ class _MeetingInputScreenState extends State<MeetingInputScreen> {
                       children: [
                         _buildHeader(),
                         const SizedBox(height: 28),
-                        const Text(
-                          '어디로 가시나요?',
-                          style: TextStyle(
+                        Text(
+                          AppStrings.text('어디로 가시나요?'),
+                          style: const TextStyle(
                             color: _textColor,
                             fontSize: 25,
                             fontWeight: FontWeight.w900,
                           ),
                         ),
                         const SizedBox(height: 8),
-                        const Text(
-                          '각자의 출발역을 입력하면 만나기 좋은 역을 찾아드려요',
-                          style: TextStyle(
+                        Text(
+                          AppStrings.text('각자의 출발역을 입력하면 만나기 좋은 역을 찾아드려요'),
+                          style: const TextStyle(
                             color: _muted,
                             fontSize: 12,
                             height: 1.5,
@@ -168,9 +195,9 @@ class _MeetingInputScreenState extends State<MeetingInputScreen> {
                         const SizedBox(height: 8),
                         _buildAddButton(),
                         const SizedBox(height: 26),
-                        const Text(
-                          '추천 기준',
-                          style: TextStyle(
+                        Text(
+                          AppStrings.text('추천 기준'),
+                          style: const TextStyle(
                             color: _textColor,
                             fontSize: 15,
                             fontWeight: FontWeight.w800,
@@ -189,9 +216,10 @@ class _MeetingInputScreenState extends State<MeetingInputScreen> {
                               borderRadius: BorderRadius.circular(12),
                             ),
                           ),
-                          child: const Text(
-                            '추천역 찾기',
-                            style: TextStyle(
+                          child: Text(
+                            AppStrings.text('추천역 찾기'),
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
                               fontSize: 15,
                               fontWeight: FontWeight.w700,
                             ),
@@ -330,7 +358,8 @@ class _MeetingInputScreenState extends State<MeetingInputScreen> {
             ),
           ),
           child: Text(
-            label,
+            AppStrings.text(label),
+            textAlign: TextAlign.center,
             style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
           ),
         ),
@@ -354,7 +383,7 @@ class _MeetingInputScreenState extends State<MeetingInputScreen> {
   }
 
   Widget _buildParticipantField(int index) {
-    final label = index == 0 ? '나' : '친구 $index';
+    final label = _personLabel(index);
     final canRemove = index > 0 && _controllers.length > 2;
 
     return Container(
@@ -366,7 +395,7 @@ class _MeetingInputScreenState extends State<MeetingInputScreen> {
       child: Row(
         children: [
           SizedBox(
-            width: 44,
+            width: 64,
             child: Text(
               label,
               textAlign: TextAlign.center,
@@ -396,7 +425,7 @@ class _MeetingInputScreenState extends State<MeetingInputScreen> {
                 fontWeight: FontWeight.w600,
               ),
               decoration: InputDecoration(
-                hintText: '출발역 입력',
+                hintText: AppStrings.text('출발역 입력'),
                 hintStyle: const TextStyle(
                   color: _muted,
                   fontSize: 13,
@@ -407,14 +436,16 @@ class _MeetingInputScreenState extends State<MeetingInputScreen> {
                 focusedBorder: InputBorder.none,
                 contentPadding: const EdgeInsets.symmetric(vertical: 18),
                 // 화면 읽기 도구에서도 사람을 구분할 수 있습니다.
-                semanticCounterText: '$label의 출발역',
+                semanticCounterText: AppStrings.text('{person}의 출발역')
+                    .replaceAll('{person}', label),
               ),
             ),
           ),
           if (canRemove)
             IconButton(
               onPressed: () => _removeFriend(index),
-              tooltip: '$label 삭제',
+              tooltip: AppStrings.text('{person} 삭제')
+                  .replaceAll('{person}', label),
               icon: const Icon(Icons.close, color: _muted, size: 18),
             )
           else
@@ -443,7 +474,10 @@ class _MeetingInputScreenState extends State<MeetingInputScreen> {
           const SizedBox(width: 6),
           Flexible(
             child: Text(
-              canAdd ? '친구 추가 (나 포함 최대 4명)' : '최대 4명까지 입력할 수 있어요',
+              AppStrings.text(
+                canAdd ? '친구 추가 (나 포함 최대 4명)' : '최대 4명까지 입력할 수 있어요',
+              ),
+              textAlign: TextAlign.center,
               style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
             ),
           ),
@@ -497,7 +531,7 @@ class _MeetingInputScreenState extends State<MeetingInputScreen> {
             foregroundColor: selected ? _navy : _muted,
             backgroundColor: selected ? Colors.white : Colors.transparent,
             minimumSize: const Size(0, 44),
-            padding: const EdgeInsets.symmetric(horizontal: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 10),
             side: BorderSide(
               color: selected ? _navy : Colors.transparent,
               width: 1.5,
@@ -507,7 +541,8 @@ class _MeetingInputScreenState extends State<MeetingInputScreen> {
             ),
           ),
           child: Text(
-            label,
+            AppStrings.text(label),
+            textAlign: TextAlign.center,
             style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
           ),
         ),
@@ -589,7 +624,11 @@ class _MeetingInputScreenState extends State<MeetingInputScreen> {
                 child: Icon(icon, size: 23),
               ),
               const SizedBox(height: 3),
-              Text(label, style: const TextStyle(fontSize: 10)),
+              Text(
+                AppStrings.text(label),
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 10, height: 1.3),
+              ),
             ],
           ),
         ),
