@@ -3,10 +3,10 @@ import 'package:flutter/material.dart';
 import '../api/api_client.dart';
 import '../data/favorite_routes.dart';
 import '../data/subway_map_data.dart';
+import '../localization/app_strings.dart';
 import '../widgets/language_selector.dart';
 import 'favorites_screen.dart';
 import 'subway_map_screen.dart';
-import '../localization/app_strings.dart';
 
 const _navy = Color(0xFF152952);
 const _textColor = Color(0xFF293F64);
@@ -15,13 +15,37 @@ const _lightBackground = Color(0xFFF0F5F8);
 const _border = Color(0xFFD2DAE6);
 const _transferColor = Color(0xFF9CA8BA);
 
-/// 노선 색. 노선도 화면과 같은 색을 쓴다.
 Color _lineColor(int line) {
   try {
     return SubwayMapData.colorForLine(line);
   } on ArgumentError {
     return _muted;
   }
+}
+
+// 번역 문장 안에 역 이름, 시간, 횟수를 넣습니다.
+String _t(String key, [Map<String, Object> values = const {}]) {
+  var text = AppStrings.text(key);
+
+  for (final entry in values.entries) {
+    text = text.replaceAll('{${entry.key}}', entry.value.toString());
+  }
+
+  return text;
+}
+
+String _lineLabel(int line) {
+  return _t('{line}호선', {'line': line});
+}
+
+String _durationLabel(int seconds) {
+  return _t('{minutes}분', {'minutes': minutesOf(seconds)});
+}
+
+class _UnknownRouteStation implements Exception {
+  const _UnknownRouteStation(this.name);
+
+  final String name;
 }
 
 class RouteResultScreen extends StatefulWidget {
@@ -32,12 +56,8 @@ class RouteResultScreen extends StatefulWidget {
     this.criteria = 'time',
   });
 
-  /// 사용자가 입력한 역 이름 (예: '신도림', 'Sindorim')
   final String departure;
   final String arrival;
-
-  /// 처음 열어 둘 탭: 'time'(최단시간) 또는 'transfers'(최소환승).
-  /// 챗봇이 찾은 경로를 같은 기준으로 보여 줄 때 쓴다.
   final String criteria;
 
   @override
@@ -45,73 +65,89 @@ class RouteResultScreen extends StatefulWidget {
 }
 
 class _RouteResultScreenState extends State<RouteResultScreen> {
-  // 탭 순서대로 서버의 criteria 값 (api-spec.md 2장)
   static const _criteriaValues = ['time', 'transfers'];
 
   int _selectedCriteria = 0;
 
-  /// 입력한 역 이름 → (출발역 ID, 도착역 ID)
   late Future<(String, String)> _stationIds;
 
-  // 기준(탭)별 결과. 탭을 다시 눌러도 서버를 또 부르지 않는다.
   final Map<String, Future<RouteResult>> _routes = {};
   final Map<String, Future<String>> _explanations = {};
 
   String get _criteria => _criteriaValues[_selectedCriteria];
 
-  // 역 이름 데이터는 한국어·영어만 있다. 앱 언어가 한국어가 아니면 영어 이름을 쓴다.
   String get _nameLang =>
       LanguageSettings.selected.value.code == 'ko' ? 'ko' : 'en';
 
-  // AI 설명은 앱에서 고른 언어 그대로 (ko, en, ja, zh-Hans, zh-Hant, vi)
   String get _explainLang => LanguageSettings.selected.value.code;
 
   @override
   void initState() {
     super.initState();
+
     final index = _criteriaValues.indexOf(widget.criteria);
-    if (index > 0) _selectedCriteria = index; // 모르는 값이면 첫 탭 그대로
+    if (index >= 0) {
+      _selectedCriteria = index;
+    }
+
     _stationIds = _findStationIds();
+    LanguageSettings.selected.addListener(_onLanguageChanged);
+  }
+
+  @override
+  void dispose() {
+    LanguageSettings.selected.removeListener(_onLanguageChanged);
+    super.dispose();
+  }
+
+  void _onLanguageChanged() {
+    if (!mounted) return;
+
+    setState(() {
+      // 이전 언어로 받은 결과와 설명을 다시 사용하지 않습니다.
+      _routes.clear();
+      _explanations.clear();
+    });
   }
 
   Future<(String, String)> _findStationIds() async {
     final start = await apiClient.findStationId(widget.departure);
     if (start == null) {
-      throw ApiException(
-        'STATION_NOT_FOUND',
-        "'${widget.departure}' 역을 찾을 수 없습니다.",
-      );
+      throw _UnknownRouteStation(widget.departure);
     }
+
     final end = await apiClient.findStationId(widget.arrival);
     if (end == null) {
-      throw ApiException(
-        'STATION_NOT_FOUND',
-        "'${widget.arrival}' 역을 찾을 수 없습니다.",
-      );
+      throw _UnknownRouteStation(widget.arrival);
     }
+
     return (start, end);
   }
 
   Future<RouteResult> _routeFor(String criteria) {
+    final nameLang = _nameLang;
+
     return _routes[criteria] ??= _stationIds.then(
       (ids) => apiClient.route(
         startId: ids.$1,
         endId: ids.$2,
         criteria: criteria,
-        lang: _nameLang,
+        lang: nameLang,
       ),
     );
   }
 
-  // 경로 계산과 AI 설명은 따로 부른다. 설명이 실패해도 경로는 그대로 보인다.
   Future<String> _explanationFor(String criteria) {
+    final nameLang = _nameLang;
+    final explainLang = _explainLang;
+
     return _explanations[criteria] ??= _stationIds.then(
       (ids) => apiClient.explainRoute(
         startId: ids.$1,
         endId: ids.$2,
         criteria: criteria,
-        lang: _nameLang,
-        explainLang: _explainLang,
+        lang: nameLang,
+        explainLang: explainLang,
       ),
     );
   }
@@ -131,27 +167,34 @@ class _RouteResultScreenState extends State<RouteResultScreen> {
   }
 
   String _routeErrorText(Object? error) {
+    if (error is _UnknownRouteStation) {
+      return _t('"{station}" 역을 찾을 수 없습니다.', {'station': error.name});
+    }
+
     if (error is ApiException) {
       switch (error.code) {
         case 'NETWORK':
-          return '서버에 연결할 수 없습니다.\n서버가 켜져 있는지 확인해 주세요.';
+          return _t('서버에 연결할 수 없습니다.\n서버가 켜져 있는지 확인해 주세요.');
         case 'SAME_STATION':
-          return '출발역과 도착역이 같습니다.';
+          return _t('출발역과 도착역이 같습니다.');
         case 'NO_ROUTE':
-          return '두 역을 잇는 경로가 없습니다.';
+          return _t('두 역을 잇는 경로가 없습니다.');
         case 'STATION_NOT_FOUND':
-          return error.message;
+          return _t('입력한 역을 찾을 수 없습니다.');
+        default:
+          return _t('경로를 불러올 수 없습니다. 잠시 후 다시 시도해 주세요.');
       }
-      return error.message;
     }
-    return '알 수 없는 오류가 발생했습니다.';
+
+    return _t('알 수 없는 오류가 발생했습니다.');
   }
 
   String _explanationErrorText(Object? error) {
     if (error is ApiException && error.code == 'NETWORK') {
-      return '서버에 연결할 수 없습니다.';
+      return _t('서버에 연결할 수 없습니다.');
     }
-    return '지금은 AI 설명을 만들 수 없습니다. 잠시 후 다시 시도해 주세요.';
+
+    return _t('지금은 AI 설명을 만들 수 없습니다. 잠시 후 다시 시도해 주세요.');
   }
 
   void _showMessage(String message) {
@@ -164,15 +207,17 @@ class _RouteResultScreenState extends State<RouteResultScreen> {
     Navigator.of(context).popUntil((route) => route.isFirst);
   }
 
-  /// 지나가는 모든 역 (환승역은 한 번만)과 그때 탄 노선
   List<(StationRef, int)> _allStations(RouteResult route) {
     final stations = <(StationRef, int)>[];
+
     for (final segment in route.segments) {
-      final skipFirst = stations.isNotEmpty; // 환승역은 앞 구간에서 이미 넣었다
+      final skipFirst = stations.isNotEmpty;
+
       for (final station in segment.stations.skip(skipFirst ? 1 : 0)) {
         stations.add((station, segment.line));
       }
     }
+
     return stations;
   }
 
@@ -194,7 +239,7 @@ class _RouteResultScreenState extends State<RouteResultScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Text(
-                    AppStrings.text('정차역 목록'),
+                    _t('정차역 목록'),
                     style: const TextStyle(
                       color: _textColor,
                       fontSize: 20,
@@ -203,7 +248,7 @@ class _RouteResultScreenState extends State<RouteResultScreen> {
                   ),
                   const SizedBox(height: 10),
                   Text(
-                    '출발역부터 도착역까지 ${stations.length}개 역',
+                    _t('출발역부터 도착역까지 {count}개 역', {'count': stations.length}),
                     style: const TextStyle(
                       color: _muted,
                       fontSize: 13,
@@ -222,6 +267,7 @@ class _RouteResultScreenState extends State<RouteResultScreen> {
                       },
                       itemBuilder: (context, index) {
                         final (station, line) = stations[index];
+
                         return ListTile(
                           contentPadding: EdgeInsets.zero,
                           leading: Icon(
@@ -237,7 +283,7 @@ class _RouteResultScreenState extends State<RouteResultScreen> {
                             ),
                           ),
                           trailing: Text(
-                            '$line호선',
+                            _lineLabel(line),
                             style: const TextStyle(color: _muted, fontSize: 12),
                           ),
                         );
@@ -245,15 +291,13 @@ class _RouteResultScreenState extends State<RouteResultScreen> {
                     ),
                   ),
                   OutlinedButton(
-                    onPressed: () {
-                      Navigator.of(sheetContext).pop();
-                    },
+                    onPressed: () => Navigator.of(sheetContext).pop(),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: _navy,
                       minimumSize: const Size(double.infinity, 48),
                       side: const BorderSide(color: _border),
                     ),
-                    child: Text(AppStrings.text('닫기')),
+                    child: Text(_t('닫기')),
                   ),
                 ],
               ),
@@ -279,7 +323,6 @@ class _RouteResultScreenState extends State<RouteResultScreen> {
                   child: FutureBuilder<RouteResult>(
                     future: _routeFor(_criteria),
                     builder: (context, snapshot) {
-                      // 탭을 바꾸면 새 결과가 올 때까지 로딩을 보여 준다
                       final done =
                           snapshot.connectionState == ConnectionState.done;
                       final route = done && !snapshot.hasError
@@ -299,8 +342,10 @@ class _RouteResultScreenState extends State<RouteResultScreen> {
                               _buildLoading()
                             else if (snapshot.hasError)
                               _buildError(snapshot.error)
+                            else if (route != null)
+                              ..._buildRouteDetails(route)
                             else
-                              ..._buildRouteDetails(route!),
+                              _buildError(null),
                           ],
                         ),
                       );
@@ -323,7 +368,7 @@ class _RouteResultScreenState extends State<RouteResultScreen> {
       _buildExplanationCard(),
       const SizedBox(height: 22),
       Text(
-        AppStrings.text('상세 경로'),
+        _t('상세 경로'),
         style: const TextStyle(
           color: _textColor,
           fontSize: 16,
@@ -339,12 +384,13 @@ class _RouteResultScreenState extends State<RouteResultScreen> {
           foregroundColor: _textColor,
           side: const BorderSide(color: Color(0xFF9AAAC1)),
           minimumSize: const Size(double.infinity, 54),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
         ),
         child: Text(
-          AppStrings.text('정차역 모두 보기'),
+          _t('정차역 모두 보기'),
           textAlign: TextAlign.center,
           style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
         ),
@@ -386,7 +432,7 @@ class _RouteResultScreenState extends State<RouteResultScreen> {
               foregroundColor: _navy,
               side: const BorderSide(color: _border),
             ),
-            child: Text(AppStrings.text('다시 시도')),
+            child: Text(_t('다시 시도')),
           ),
         ],
       ),
@@ -400,12 +446,12 @@ class _RouteResultScreenState extends State<RouteResultScreen> {
         children: [
           IconButton(
             onPressed: () => Navigator.of(context).pop(),
-            tooltip: AppStrings.text('뒤로가기'),
+            tooltip: _t('뒤로가기'),
             icon: const Icon(Icons.chevron_left, color: _navy),
           ),
           Expanded(
             child: Text(
-              AppStrings.text('경로 결과'),
+              _t('경로 결과'),
               textAlign: TextAlign.center,
               style: const TextStyle(
                 color: _textColor,
@@ -427,14 +473,14 @@ class _RouteResultScreenState extends State<RouteResultScreen> {
                   FavoriteRoutes.toggle(widget.departure, widget.arrival);
 
                   _showMessage(
-                    AppStrings.text(
+                    _t(
                       isFavorite
                           ? '즐겨찾기에서 해제했습니다.'
                           : '즐겨찾기에 추가했습니다. 앱 재시작 시 초기화됩니다.',
                     ),
                   );
                 },
-                tooltip: AppStrings.text(isFavorite ? '즐겨찾기 해제' : '즐겨찾기 선택'),
+                tooltip: _t(isFavorite ? '즐겨찾기 해제' : '즐겨찾기 선택'),
                 icon: Icon(
                   isFavorite ? Icons.star_rounded : Icons.star_border_rounded,
                   color: _navy,
@@ -448,7 +494,6 @@ class _RouteResultScreenState extends State<RouteResultScreen> {
     );
   }
 
-  /// [route]가 없으면(불러오는 중·오류) 입력한 이름을 보여 준다.
   Widget _buildRouteTitle(RouteResult? route) {
     final title = route == null
         ? '${widget.departure} → ${widget.arrival}'
@@ -469,8 +514,12 @@ class _RouteResultScreenState extends State<RouteResultScreen> {
         if (route != null) ...[
           const SizedBox(height: 8),
           Text(
-            '예상 소요 ${minutesOf(route.totalSec)}분 · 환승 ${route.transferCount}회',
-            style: const TextStyle(color: _muted, fontSize: 12),
+            _t('예상 소요 {minutes}분 · 환승 {count}회', {
+              'minutes': minutesOf(route.totalSec),
+              'count': route.transferCount,
+            }),
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: _muted, fontSize: 12, height: 1.5),
           ),
         ],
       ],
@@ -509,12 +558,13 @@ class _RouteResultScreenState extends State<RouteResultScreen> {
             foregroundColor: selected ? Colors.white : _muted,
             backgroundColor: selected ? _navy : Colors.transparent,
             minimumSize: const Size(0, 48),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(10),
             ),
           ),
           child: Text(
-            AppStrings.text(label),
+            _t(label),
             textAlign: TextAlign.center,
             style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
           ),
@@ -523,30 +573,36 @@ class _RouteResultScreenState extends State<RouteResultScreen> {
     );
   }
 
-  /// 탄 순서대로 (색, 걸린 초, 설명): 노선 구간 → 환승 → 노선 구간 …
   List<(Color, int, String)> _timeParts(RouteResult route) {
     final parts = <(Color, int, String)>[];
+
     for (var i = 0; i < route.segments.length; i++) {
       final segment = route.segments[i];
+
       parts.add((
         _lineColor(segment.line),
         segment.rideSec,
-        '${segment.line}호선 ${minutesOf(segment.rideSec)}분',
+        '${_lineLabel(segment.line)} · '
+            '${_durationLabel(segment.rideSec)}',
       ));
+
       if (i < route.transfers.length) {
         final transfer = route.transfers[i];
+
         parts.add((
           _transferColor,
           transfer.sec,
-          '환승 ${minutesOf(transfer.sec)}분',
+          _t('환승 {minutes}분', {'minutes': minutesOf(transfer.sec)}),
         ));
       }
     }
+
     return parts;
   }
 
   Widget _buildSummaryCard(RouteResult route) {
     final parts = _timeParts(route);
+    final positiveParts = parts.where((part) => part.$2 > 0).toList();
 
     return Container(
       padding: const EdgeInsets.all(18),
@@ -562,129 +618,47 @@ class _RouteResultScreenState extends State<RouteResultScreen> {
               children: [
                 Expanded(
                   child: _buildMetric(
-                    label: '총 소요시간',
+                    label: _t('총 소요시간'),
                     value: '${minutesOf(route.totalSec)}',
-                    unit: '분',
+                    unit: _t('분'),
                   ),
                 ),
                 const VerticalDivider(width: 28, thickness: 1, color: _border),
                 Expanded(
                   child: _buildMetric(
-                    label: '환승',
+                    label: _t('환승'),
                     value: '${route.transferCount}',
-                    unit: '회',
+                    unit: _t('회'),
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 18),
-          // 막대 길이 = 걸린 시간 비율
-          Row(
-            children: [
-              for (var i = 0; i < parts.length; i++) ...[
-                if (i > 0) const SizedBox(width: 4),
-                _buildTimeBar(color: parts[i].$1, flex: parts[i].$2),
-              ],
-            ],
-          ),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 12,
-            runSpacing: 6,
-            children: [
-              for (final part in parts)
-                _buildLegend(color: part.$1, label: part.$3),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildExplanationCard() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: _border),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.auto_awesome, color: _navy, size: 18),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  AppStrings.text('AI 경로 설명'),
-                  style: const TextStyle(
-                    color: _textColor,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w800,
+          if (positiveParts.isNotEmpty) ...[
+            const SizedBox(height: 18),
+            Row(
+              children: [
+                for (var i = 0; i < positiveParts.length; i++) ...[
+                  if (i > 0) const SizedBox(width: 4),
+                  _buildTimeBar(
+                    color: positiveParts[i].$1,
+                    flex: positiveParts[i].$2,
                   ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          FutureBuilder<String>(
-            future: _explanationFor(_criteria),
-            builder: (context, snapshot) {
-              if (snapshot.connectionState != ConnectionState.done) {
-                return Row(
-                  children: [
-                    const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        AppStrings.text('설명을 만드는 중입니다…'),
-                        style: const TextStyle(color: _muted, fontSize: 13),
-                      ),
-                    ),
-                  ],
-                );
-              }
-              if (snapshot.hasError) {
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      _explanationErrorText(snapshot.error),
-                      style: const TextStyle(
-                        color: _muted,
-                        fontSize: 13,
-                        height: 1.5,
-                      ),
-                    ),
-                    TextButton.icon(
-                      onPressed: _retryExplanation,
-                      icon: const Icon(Icons.refresh, size: 18),
-                      label: Text(AppStrings.text('다시 시도')),
-                      style: TextButton.styleFrom(
-                        foregroundColor: _navy,
-                        padding: EdgeInsets.zero,
-                      ),
-                    ),
-                  ],
-                );
-              }
-              return Text(
-                snapshot.data!,
-                style: const TextStyle(
-                  color: _textColor,
-                  fontSize: 14,
-                  height: 1.6,
-                ),
-              );
-            },
-          ),
+                ],
+              ],
+            ),
+          ],
+          if (parts.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 12,
+              runSpacing: 6,
+              children: [
+                for (final part in parts)
+                  _buildLegend(color: part.$1, label: part.$3),
+              ],
+            ),
+          ],
         ],
       ),
     );
@@ -698,7 +672,10 @@ class _RouteResultScreenState extends State<RouteResultScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(color: _muted, fontSize: 12)),
+        Text(
+          label,
+          style: const TextStyle(color: _muted, fontSize: 12, height: 1.4),
+        ),
         const SizedBox(height: 6),
         Text.rich(
           TextSpan(
@@ -710,13 +687,14 @@ class _RouteResultScreenState extends State<RouteResultScreen> {
                   fontWeight: FontWeight.w800,
                 ),
               ),
-              TextSpan(
-                text: unit,
-                style: const TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
+              if (unit.isNotEmpty)
+                TextSpan(
+                  text: ' $unit',
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
-              ),
             ],
           ),
           style: const TextStyle(color: _textColor),
@@ -748,30 +726,129 @@ class _RouteResultScreenState extends State<RouteResultScreen> {
           decoration: BoxDecoration(color: color, shape: BoxShape.circle),
         ),
         const SizedBox(width: 4),
-        Text(label, style: const TextStyle(color: _muted, fontSize: 10)),
+        Flexible(
+          child: Text(
+            label,
+            style: const TextStyle(color: _muted, fontSize: 10, height: 1.4),
+          ),
+        ),
       ],
     );
   }
 
-  /// 승차 → (환승 → 승차) … → 하차. 방면은 탑승 직후 다음 역이다.
+  Widget _buildExplanationCard() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border.all(color: _border),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.auto_awesome, color: _navy, size: 18),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  _t('AI 경로 설명'),
+                  style: const TextStyle(
+                    color: _textColor,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          FutureBuilder<String>(
+            future: _explanationFor(_criteria),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState != ConnectionState.done) {
+                return Row(
+                  children: [
+                    const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        _t('설명을 만드는 중입니다…'),
+                        style: const TextStyle(color: _muted, fontSize: 13),
+                      ),
+                    ),
+                  ],
+                );
+              }
+
+              if (snapshot.hasError) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _explanationErrorText(snapshot.error),
+                      style: const TextStyle(
+                        color: _muted,
+                        fontSize: 13,
+                        height: 1.5,
+                      ),
+                    ),
+                    TextButton.icon(
+                      onPressed: _retryExplanation,
+                      icon: const Icon(Icons.refresh, size: 18),
+                      label: Text(_t('다시 시도')),
+                      style: TextButton.styleFrom(
+                        foregroundColor: _navy,
+                        padding: EdgeInsets.zero,
+                      ),
+                    ),
+                  ],
+                );
+              }
+
+              return Text(
+                snapshot.data ?? '',
+                style: const TextStyle(
+                  color: _textColor,
+                  fontSize: 14,
+                  height: 1.6,
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildTimeline(RouteResult route) {
     if (route.segments.isEmpty) {
       return const SizedBox.shrink();
     }
 
     final steps = <Widget>[];
+
     for (var i = 0; i < route.segments.length; i++) {
       final segment = route.segments[i];
       final color = _lineColor(segment.line);
-      final direction = segment.direction == null
-          ? ''
-          : ' · ${segment.direction!.name} 방면';
+
+      final details = <String>[
+        _lineLabel(segment.line),
+        if (segment.direction != null)
+          _t('{station} 방면', {'station': segment.direction!.name}),
+        _t('{count}개 역 이동', {'count': segment.stops}),
+      ];
 
       steps.add(
         _buildTimelineStep(
-          title: '${segment.board.name} 승차',
-          subtitle: '${segment.line}호선$direction · ${segment.stops}개 역 이동',
-          duration: '${minutesOf(segment.rideSec)}분',
+          title: _t('{station} 승차', {'station': segment.board.name}),
+          subtitle: details.join(' · '),
+          duration: _durationLabel(segment.rideSec),
           markerColor: color,
           lineColor: color,
           markerText: '${segment.line}',
@@ -780,11 +857,14 @@ class _RouteResultScreenState extends State<RouteResultScreen> {
 
       if (i < route.transfers.length) {
         final transfer = route.transfers[i];
+
         steps.add(
           _buildTimelineStep(
-            title: '${transfer.station.name} 환승',
-            subtitle: '${transfer.fromLine}호선 → ${transfer.toLine}호선',
-            duration: '${minutesOf(transfer.sec)}분',
+            title: _t('{station} 환승', {'station': transfer.station.name}),
+            subtitle:
+                '${_lineLabel(transfer.fromLine)} → '
+                '${_lineLabel(transfer.toLine)}',
+            duration: _durationLabel(transfer.sec),
             markerColor: _transferColor,
             lineColor: _border,
             transfer: true,
@@ -792,9 +872,10 @@ class _RouteResultScreenState extends State<RouteResultScreen> {
         );
       }
     }
+
     steps.add(
       _buildTimelineStep(
-        title: '${route.end.name} 하차',
+        title: _t('{station} 하차', {'station': route.end.name}),
         markerColor: _lineColor(route.segments.last.line),
         isLast: true,
       ),
@@ -824,6 +905,7 @@ class _RouteResultScreenState extends State<RouteResultScreen> {
                 Container(
                   width: 25,
                   height: 25,
+                  alignment: Alignment.center,
                   decoration: BoxDecoration(
                     color: transfer || isLast ? Colors.white : markerColor,
                     shape: BoxShape.circle,
@@ -832,7 +914,6 @@ class _RouteResultScreenState extends State<RouteResultScreen> {
                       width: isLast ? 2.5 : 1,
                     ),
                   ),
-                  alignment: Alignment.center,
                   child: transfer
                       ? const Icon(Icons.swap_horiz, color: _muted, size: 17)
                       : markerText != null
@@ -862,27 +943,35 @@ class _RouteResultScreenState extends State<RouteResultScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Expanded(
+                        flex: 3,
                         child: Text(
                           title,
                           style: const TextStyle(
                             color: _textColor,
                             fontSize: 15,
                             fontWeight: FontWeight.w700,
+                            height: 1.4,
                           ),
                         ),
                       ),
-                      if (duration != null)
-                        Padding(
-                          padding: const EdgeInsets.only(left: 8),
-                          child: Text(
-                            duration,
-                            style: const TextStyle(
-                              color: _textColor,
-                              fontSize: 13,
-                              fontWeight: FontWeight.w700,
+                      if (duration != null) ...[
+                        const SizedBox(width: 8),
+                        Flexible(
+                          child: Align(
+                            alignment: Alignment.topRight,
+                            child: Text(
+                              duration,
+                              textAlign: TextAlign.right,
+                              style: const TextStyle(
+                                color: _textColor,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                height: 1.4,
+                              ),
                             ),
                           ),
                         ),
+                      ],
                     ],
                   ),
                   if (subtitle != null) ...[
@@ -980,7 +1069,7 @@ class _RouteResultScreenState extends State<RouteResultScreen> {
               ),
               const SizedBox(height: 3),
               Text(
-                AppStrings.text(label),
+                _t(label),
                 textAlign: TextAlign.center,
                 style: const TextStyle(fontSize: 10, height: 1.3),
               ),
