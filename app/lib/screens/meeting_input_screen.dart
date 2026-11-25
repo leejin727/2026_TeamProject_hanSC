@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../l10n/strings.dart';
 import 'favorites_screen.dart';
 import 'meeting_result_screen.dart';
 import 'subway_map_screen.dart';
@@ -32,6 +33,9 @@ class _MeetingInputScreenState extends State<MeetingInputScreen> {
   final List<TextEditingController> _removedControllers = [];
 
   _RecommendationCriteria _criteria = _RecommendationCriteria.fastest;
+
+  /// 화면 글자 (앱 언어가 ko면 한국어, 아니면 영어)
+  Tr get _t => Tr.of(context);
 
   @override
   void dispose() {
@@ -83,8 +87,10 @@ class _MeetingInputScreenState extends State<MeetingInputScreen> {
 
     for (var index = 0; index < _controllers.length; index++) {
       if (_controllers[index].text.trim().isEmpty) {
-        final person = index == 0 ? '나' : '친구 $index';
-        _showMessage('$person의 출발역을 입력해 주세요.');
+        final t = Tr.current;
+        _showMessage(
+          t('meetingInput.needDeparture', {'person': t.person(index)}),
+        );
         return;
       }
     }
@@ -93,23 +99,20 @@ class _MeetingInputScreenState extends State<MeetingInputScreen> {
         .map((controller) => controller.text.trim())
         .toList();
 
-    final String criteriaLabel;
     final String criteria; // 서버에 보내는 값 (api-spec.md 3장)
 
     switch (_criteria) {
       case _RecommendationCriteria.fastest:
-        criteriaLabel = '최단시간';
         criteria = 'time';
         break;
       case _RecommendationCriteria.fairest:
-        criteriaLabel = '공평성';
         criteria = 'fairness';
         break;
       case _RecommendationCriteria.fewestTransfers:
-        criteriaLabel = '최소환승';
         criteria = 'transfers';
         break;
     }
+    final criteriaLabel = Tr.current.criteria(criteria);
 
     Navigator.of(context).push(
       MaterialPageRoute<void>(
@@ -142,18 +145,18 @@ class _MeetingInputScreenState extends State<MeetingInputScreen> {
                       children: [
                         _buildHeader(),
                         const SizedBox(height: 28),
-                        const Text(
-                          '어디로 가시나요?',
-                          style: TextStyle(
+                        Text(
+                          _t('common.whereTo'),
+                          style: const TextStyle(
                             color: _textColor,
                             fontSize: 25,
                             fontWeight: FontWeight.w900,
                           ),
                         ),
                         const SizedBox(height: 8),
-                        const Text(
-                          '각자의 출발역을 입력하면 만나기 좋은 역을 찾아드려요',
-                          style: TextStyle(
+                        Text(
+                          _t('meetingInput.subtitle'),
+                          style: const TextStyle(
                             color: _muted,
                             fontSize: 12,
                             height: 1.5,
@@ -168,9 +171,9 @@ class _MeetingInputScreenState extends State<MeetingInputScreen> {
                         const SizedBox(height: 8),
                         _buildAddButton(),
                         const SizedBox(height: 26),
-                        const Text(
-                          '추천 기준',
-                          style: TextStyle(
+                        Text(
+                          _t('meetingInput.criteria'),
+                          style: const TextStyle(
                             color: _textColor,
                             fontSize: 15,
                             fontWeight: FontWeight.w800,
@@ -189,9 +192,9 @@ class _MeetingInputScreenState extends State<MeetingInputScreen> {
                               borderRadius: BorderRadius.circular(12),
                             ),
                           ),
-                          child: const Text(
-                            '추천역 찾기',
-                            style: TextStyle(
+                          child: Text(
+                            _t('meetingInput.find'),
+                            style: const TextStyle(
                               fontSize: 15,
                               fontWeight: FontWeight.w700,
                             ),
@@ -304,8 +307,12 @@ class _MeetingInputScreenState extends State<MeetingInputScreen> {
       ),
       child: Row(
         children: [
-          _buildTab(label: '경로 검색', selected: false, onPressed: _goHome),
-          _buildTab(label: '모임역 추천', selected: true, onPressed: () {}),
+          _buildTab(
+            label: _t('tab.route'),
+            selected: false,
+            onPressed: _goHome,
+          ),
+          _buildTab(label: _t('tab.meeting'), selected: true, onPressed: () {}),
         ],
       ),
     );
@@ -354,7 +361,7 @@ class _MeetingInputScreenState extends State<MeetingInputScreen> {
   }
 
   Widget _buildParticipantField(int index) {
-    final label = index == 0 ? '나' : '친구 $index';
+    final label = _t.person(index);
     final canRemove = index > 0 && _controllers.length > 2;
 
     return Container(
@@ -396,7 +403,7 @@ class _MeetingInputScreenState extends State<MeetingInputScreen> {
                 fontWeight: FontWeight.w600,
               ),
               decoration: InputDecoration(
-                hintText: '출발역 입력',
+                hintText: _t('common.departureHint'),
                 hintStyle: const TextStyle(
                   color: _muted,
                   fontSize: 13,
@@ -407,14 +414,16 @@ class _MeetingInputScreenState extends State<MeetingInputScreen> {
                 focusedBorder: InputBorder.none,
                 contentPadding: const EdgeInsets.symmetric(vertical: 18),
                 // 화면 읽기 도구에서도 사람을 구분할 수 있습니다.
-                semanticCounterText: '$label의 출발역',
+                semanticCounterText: _t('meetingInput.departureOf', {
+                  'person': label,
+                }),
               ),
             ),
           ),
           if (canRemove)
             IconButton(
               onPressed: () => _removeFriend(index),
-              tooltip: '$label 삭제',
+              tooltip: _t('meetingInput.remove', {'person': label}),
               icon: const Icon(Icons.close, color: _muted, size: 18),
             )
           else
@@ -443,7 +452,7 @@ class _MeetingInputScreenState extends State<MeetingInputScreen> {
           const SizedBox(width: 6),
           Flexible(
             child: Text(
-              canAdd ? '친구 추가 (나 포함 최대 4명)' : '최대 4명까지 입력할 수 있어요',
+              canAdd ? _t('meetingInput.addFriend') : _t('meetingInput.max'),
               style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
             ),
           ),
@@ -462,15 +471,15 @@ class _MeetingInputScreenState extends State<MeetingInputScreen> {
       child: Row(
         children: [
           _buildCriteriaButton(
-            label: '최단시간',
+            label: _t.criteria('time'),
             value: _RecommendationCriteria.fastest,
           ),
           _buildCriteriaButton(
-            label: '공평성',
+            label: _t.criteria('fairness'),
             value: _RecommendationCriteria.fairest,
           ),
           _buildCriteriaButton(
-            label: '최소환승',
+            label: _t.criteria('transfers'),
             value: _RecommendationCriteria.fewestTransfers,
           ),
         ],
@@ -525,13 +534,13 @@ class _MeetingInputScreenState extends State<MeetingInputScreen> {
       child: Row(
         children: [
           _buildNavigationItem(
-            label: '홈',
+            label: _t('nav.home'),
             icon: Icons.home_outlined,
             selected: true,
             onPressed: _goHome,
           ),
           _buildNavigationItem(
-            label: '즐겨찾기',
+            label: _t('nav.favorites'),
             icon: Icons.star_border_rounded,
             selected: false,
             onPressed: () {
@@ -543,7 +552,7 @@ class _MeetingInputScreenState extends State<MeetingInputScreen> {
             },
           ),
           _buildNavigationItem(
-            label: '노선도',
+            label: _t('nav.map'),
             icon: Icons.map_outlined,
             selected: false,
             onPressed: () {
