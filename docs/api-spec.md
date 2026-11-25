@@ -267,7 +267,8 @@ GET /stations?lang=en
 
 ## 4-1. GET /stations/{station_id}/facilities — 주변 시설 (AI 예시)
 
-> 2026-11-18 추가. 가상 노선이라 실제 시설 데이터가 없어서, **실제 역 이름을 바탕으로 Gemini가 만든 예시**를 준다. 실제와 다를 수 있다 (ASSUMPTIONS.md "주변 시설"). 앱은 이 사실을 화면에 함께 보여 준다.
+> 2026-11-18 추가. 가상 노선이라 실제 시설 데이터가 없어서, **실제 역 이름을 바탕으로 Gemini가 만든 예시**를 준다. 실제와 다를 수 있다 (ASSUMPTIONS.md "주변 시설"). 주변 시설은 AI가 만든 예시다. 앱 화면에는 이 사실을 표시하지 않고, API의 `ai_generated` 값으로만 구분한다 (2026-11-25 이진 결정).
+> 한국어 목록을 먼저 만들고 다른 언어는 그 목록을 번역하므로, 언어가 달라도 같은 가게다 (2026-11-25). 저장된 한국어 목록이 없는 역을 다른 언어로 처음 요청하면 한국어부터 만들어서 Gemini를 두 번 부른다.
 
 **요청**
 
@@ -299,10 +300,10 @@ GET /stations/705/facilities?lang=ko
 | `station` | 역 객체. `lang`이 `ko`면 한국어 이름, 그 밖에는 영어 이름 |
 | `facilities[].category` | `cafe`, `restaurant`, `convenience_store`, `pharmacy`, `restroom` 중 하나. 항상 이 순서, 종류마다 최대 1개. 앱은 이 값으로 아이콘·종류 이름을 정한다 |
 | `facilities[].name` / `detail` | 시설 이름 / 위치 안내 (`lang` 언어). AI가 만든 예시 |
-| `ai_generated` | 항상 `true`. AI가 만든 예시라는 표시 |
+| `ai_generated` | 항상 `true`. AI가 만든 예시라는 표시 (개발자·API에서만 구분하는 값이라 앱 화면에는 쓰지 않는다) |
 | `cached` | 저장해 둔 예시를 다시 쓴 경우 `true`. 같은 역 + 같은 `lang`은 처음 한 번만 만든다 |
 
-**오류:** 없는 역 → 400 `STATION_NOT_FOUND`, `lang`이 위 6개가 아님 → 400 `VALIDATION_ERROR`, `lang` 없음 → 422 `INVALID_REQUEST`, Gemini 실패·시간 초과·시설용 키(`GEMINI_FACILITY_API_KEY`) 없음·답 모양이 틀림 → 503 `AI_UNAVAILABLE` (저장하지 않으므로 다시 요청하면 새로 만든다).
+**오류:** 없는 역 → 400 `STATION_NOT_FOUND`, `lang`이 위 6개가 아님 → 400 `VALIDATION_ERROR`, `lang` 없음 → 422 `INVALID_REQUEST`, Gemini 실패·시간 초과·시설용 키(`GEMINI_FACILITY_API_KEY`) 없음·답 모양이 틀림(번역은 한 번 더 불러도 항목 수·순서가 한국어와 다르거나 한글이 섞임) → 503 `AI_UNAVAILABLE` (저장하지 않으므로 다시 요청하면 새로 만든다).
 
 ---
 

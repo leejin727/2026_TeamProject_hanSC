@@ -54,11 +54,15 @@ class RouteResultScreen extends StatefulWidget {
     required this.departure,
     required this.arrival,
     this.criteria = 'time',
+    this.client,
   });
 
   final String departure;
   final String arrival;
   final String criteria;
+
+  /// 서버 연결. 테스트에서 가짜 서버를 넣을 때만 준다 (없으면 앱 전체가 쓰는 apiClient).
+  final ApiClient? client;
 
   @override
   State<RouteResultScreen> createState() => _RouteResultScreenState();
@@ -66,6 +70,8 @@ class RouteResultScreen extends StatefulWidget {
 
 class _RouteResultScreenState extends State<RouteResultScreen> {
   static const _criteriaValues = ['time', 'transfers'];
+
+  ApiClient get _client => widget.client ?? apiClient;
 
   int _selectedCriteria = 0;
 
@@ -111,12 +117,12 @@ class _RouteResultScreenState extends State<RouteResultScreen> {
   }
 
   Future<(String, String)> _findStationIds() async {
-    final start = await apiClient.findStationId(widget.departure);
+    final start = await _client.findStationId(widget.departure);
     if (start == null) {
       throw _UnknownRouteStation(widget.departure);
     }
 
-    final end = await apiClient.findStationId(widget.arrival);
+    final end = await _client.findStationId(widget.arrival);
     if (end == null) {
       throw _UnknownRouteStation(widget.arrival);
     }
@@ -128,7 +134,7 @@ class _RouteResultScreenState extends State<RouteResultScreen> {
     final nameLang = _nameLang;
 
     return _routes[criteria] ??= _stationIds.then(
-      (ids) => apiClient.route(
+      (ids) => _client.route(
         startId: ids.$1,
         endId: ids.$2,
         criteria: criteria,
@@ -142,7 +148,7 @@ class _RouteResultScreenState extends State<RouteResultScreen> {
     final explainLang = _explainLang;
 
     return _explanations[criteria] ??= _stationIds.then(
-      (ids) => apiClient.explainRoute(
+      (ids) => _client.explainRoute(
         startId: ids.$1,
         endId: ids.$2,
         criteria: criteria,

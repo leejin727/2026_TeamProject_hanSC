@@ -219,8 +219,8 @@ erDiagram
 
 **왜 필요한가:** 주변 시설은 실제 데이터가 없어서 역 이름을 바탕으로 Gemini가 예시를 만든다 (ASSUMPTIONS.md 팀 결정 2026-11-18). 역 + 언어별로 한 번만 만들어 저장해 두면, 같은 역은 늘 같은 시설이 보이고 Gemini도 덜 부른다.
 **채우는 곳:** 두 군데다.
-- `load_db.py`: 미리 만든 `data/extra/ai_facilities.json`(만드는 법: `python scripts/generate_facilities.py --lang ko en`)을 넣는다. 파일에 있는 역·언어는 파일 내용으로 바꾸고, 파일에 없는 행은 그대로 둔다.
-- `GET /stations/{station_id}/facilities`: 표에 없는 역·언어를 요청받으면 그때 Gemini로 만들어 저장한다.
+- `load_db.py`: 미리 만든 `data/extra/ai_facilities.json`(만드는 법: `.venv/bin/python scripts/generate_facilities.py`, 역마다 한국어를 먼저 만들고 다른 언어는 번역)을 넣는다. 파일에 있는 역·언어는 파일 내용으로 바꾸고, 파일에 없는 행은 그대로 둔다.
+- `GET /stations/{station_id}/facilities`: 표에 없는 역·언어를 요청받으면 그때 만들어 저장한다. 한국어는 Gemini로 만들고, 다른 언어는 저장된 한국어 목록(없으면 먼저 만들어 저장)을 번역한다 (2026-11-25).
 **7번 `nearby_facilities`와 다른 점:** 7번은 실제 시설 데이터용(지금 비어 있음), 9번은 AI 예시 저장용이다.
 
 | 컬럼 | 타입 | 제약 | 설명 |

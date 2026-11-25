@@ -52,11 +52,15 @@ class MeetingResultScreen extends StatefulWidget {
     required this.departures,
     required this.criteria,
     required this.criteriaLabel,
+    this.client,
   });
 
   final List<String> departures;
   final String criteria;
   final String criteriaLabel;
+
+  /// 서버 연결. 테스트에서 가짜 서버를 넣을 때만 준다 (없으면 앱 전체가 쓰는 apiClient).
+  final ApiClient? client;
 
   @override
   State<MeetingResultScreen> createState() => _MeetingResultScreenState();
@@ -67,6 +71,12 @@ class _MeetingResultScreenState extends State<MeetingResultScreen> {
   late Future<(MeetingResult, List<int>)> _result;
 
   Future<String>? _explanation;
+
+  /// 추천역 주변 시설. 결과와 따로 불러오고, 역·앱 언어가 바뀌면 다시 부른다.
+  Future<List<Facility>>? _facilityList;
+  String? _facilityKey;
+
+  ApiClient get _client => widget.client ?? apiClient;
 
   String get _nameLang =>
       LanguageSettings.selected.value.code == 'ko' ? 'ko' : 'en';
@@ -116,7 +126,7 @@ class _MeetingResultScreenState extends State<MeetingResultScreen> {
 
     for (var i = 0; i < widget.departures.length; i++) {
       final name = widget.departures[i];
-      final id = await apiClient.findStationId(name);
+      final id = await _client.findStationId(name);
 
       if (id == null) {
         throw _UnknownMeetingStation(i, name);
@@ -134,13 +144,13 @@ class _MeetingResultScreenState extends State<MeetingResultScreen> {
   ) async {
     final ids = await startIds;
 
-    final result = await apiClient.meeting(
+    final result = await _client.meeting(
       startIds: ids,
       criteria: widget.criteria,
       lang: nameLang,
     );
 
-    final station = await apiClient.stationById(result.station.id, nameLang);
+    final station = await _client.stationById(result.station.id, nameLang);
 
     return (result, station?.lines ?? const <int>[]);
   }
@@ -150,7 +160,7 @@ class _MeetingResultScreenState extends State<MeetingResultScreen> {
     final explainLang = _explainLang;
 
     return _explanation ??= _startIds.then(
-      (ids) => apiClient.explainMeeting(
+      (ids) => _client.explainMeeting(
         startIds: ids,
         criteria: widget.criteria,
         lang: nameLang,
@@ -275,7 +285,7 @@ class _MeetingResultScreenState extends State<MeetingResultScreen> {
                                         const SizedBox(height: 24),
                                         _buildReason(data.$1),
                                         const SizedBox(height: 26),
-                                        _buildFacilities(),
+                                        _buildFacilities(data.$1.station.id),
                                       ],
                                     )
                                   else
@@ -615,7 +625,42 @@ class _MeetingResultScreenState extends State<MeetingResultScreen> {
     );
   }
 
-  Widget _buildFacilities() {
+  /// 추천역 주변 시설 (GET /stations/{id}/facilities). 앱 언어 그대로 부른다.
+  /// 서버가 AI로 만든 예시지만, 화면에는 그 사실을 표시하지 않는다 (2026-11-25 이진 결정).
+  /// 앱 언어가 바뀌면 화면 전체가 다시 그려지면서 새 언어로 부른다
+  /// (같은 역·언어는 apiClient가 한 번만 부른다).
+  Future<List<Facility>> _facilitiesFor(String stationId, String lang) {
+    final key = '$stationId/$lang';
+    if (_facilityList == null || _facilityKey != key) {
+      _facilityKey = key;
+      _facilityList = _client.facilities(stationId, lang);
+    }
+    return _facilityList!;
+  }
+
+  void _retryFacilities() {
+    setState(() {
+      _facilityList = null;
+    });
+  }
+
+  static IconData _facilityIcon(String category) {
+    switch (category) {
+      case 'cafe':
+        return Icons.local_cafe_outlined;
+      case 'restaurant':
+        return Icons.restaurant_outlined;
+      case 'convenience_store':
+        return Icons.local_convenience_store_outlined;
+      case 'pharmacy':
+        return Icons.local_pharmacy_outlined;
+      case 'restroom':
+        return Icons.wc_outlined;
+    }
+    return Icons.place_outlined;
+  }
+
+  Widget _buildFacilities(String stationId) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -628,11 +673,117 @@ class _MeetingResultScreenState extends State<MeetingResultScreen> {
           ),
         ),
         const SizedBox(height: 12),
-        Text(
-          _t('주변 시설 정보는 아직 제공되지 않습니다.'),
-          style: const TextStyle(color: _muted, fontSize: 12, height: 1.6),
+        FutureBuilder<List<Facility>>(
+          future: _facilitiesFor(stationId, _explainLang),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState != ConnectionState.done) {
+              return Row(
+                children: [
+                  const SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      _t('주변 시설을 불러오는 중입니다…'),
+                      style: const TextStyle(color: _muted, fontSize: 12),
+                    ),
+                  ),
+                ],
+              );
+            }
+
+            if (snapshot.hasError) {
+              final error = snapshot.error;
+              final message = error is ApiException && error.code == 'NETWORK'
+                  ? '서버에 연결할 수 없습니다.'
+                  : '주변 시설을 불러오지 못했습니다.';
+
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _t(message),
+                    style: const TextStyle(
+                      color: _muted,
+                      fontSize: 12,
+                      height: 1.5,
+                    ),
+                  ),
+                  TextButton.icon(
+                    key: const Key('facilities-retry'),
+                    onPressed: _retryFacilities,
+                    icon: const Icon(Icons.refresh, size: 16),
+                    label: Text(_t('다시 시도')),
+                    style: TextButton.styleFrom(
+                      foregroundColor: _navy,
+                      padding: EdgeInsets.zero,
+                    ),
+                  ),
+                ],
+              );
+            }
+
+            final items = snapshot.data!;
+            if (items.isEmpty) {
+              return Text(
+                _t('주변 시설 정보가 없습니다.'),
+                style: const TextStyle(
+                  color: _muted,
+                  fontSize: 12,
+                  height: 1.6,
+                ),
+              );
+            }
+
+            return Column(
+              children: [for (final item in items) _buildFacilityRow(item)],
+            );
+          },
         ),
       ],
+    );
+  }
+
+  Widget _buildFacilityRow(Facility item) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: _lightBackground,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(_facilityIcon(item.category), color: _navy, size: 19),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  item.name,
+                  style: const TextStyle(
+                    color: _textColor,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  item.detail,
+                  style: const TextStyle(color: _muted, fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 

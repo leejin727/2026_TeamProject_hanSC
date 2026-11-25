@@ -1,7 +1,10 @@
 """GET /stations/{station_id}/facilities 처리: 캐시 조회 → 없으면 Gemini로 예시 생성 → 저장 → 응답.
 
-주변 시설은 실제 데이터가 아니라, 실제 역 이름을 바탕으로 AI가 만든 예시다 (ASSUMPTIONS.md 팀 결정 2026-11-18).
-그래서 응답에 "ai_generated": true를 넣고, 앱은 "실제와 다를 수 있음"을 함께 보여 준다.
+주변 시설은 AI가 만든 예시다. 앱 화면에는 이 사실을 표시하지 않고, API의 ai_generated 값으로만 구분한다
+(2026-11-25 이진 결정. 예시를 쓰기로 한 처음 결정은 ASSUMPTIONS.md 팀 결정 2026-11-18).
+
+언어가 달라도 같은 가게가 보이도록, 한국어 목록을 먼저 만들고 다른 언어는 그 목록을 번역한다 (2026-11-25).
+예전에는 언어마다 따로 만들어서, 같은 역의 카페가 한국어·영어·일본어에서 서로 다른 가게였다.
 """
 
 import logging
@@ -22,6 +25,9 @@ from app.routing.graph_builder import Network
 logger = logging.getLogger("subfit")
 
 FACILITY_LANGS = tuple(prompts.LANGUAGES)  # ko, en, ja, zh-Hans, zh-Hant, vi
+
+# 번역 답의 항목 수·category 순서가 한국어와 다르거나 한글이 섞이면, 이 횟수까지 다시 부른다
+TRANSLATE_TRIES = 2
 
 
 class Facility(BaseModel):
@@ -51,7 +57,10 @@ def facilities(network: Network, station_id: str, lang: str) -> dict:
     if items is None:
         name_ko, name_en = network.names[station_id]
         try:
-            items = generate(name_ko, name_en, lang)
+            if lang == "ko":
+                items = generate_korean(name_ko)
+            else:
+                items = translate(_korean_list(station_id, name_ko), name_en, lang)
         except (MissingSettingError, client.AIUnavailableError, ValueError) as e:
             logger.warning("주변 시설 생성 실패: %s", e)  # 원인(키 없음, 시간 초과, 모양 틀림)은 서버 로그에만
             raise AppError(503, "AI_UNAVAILABLE", "지금은 주변 시설 정보를 만들 수 없습니다") from e
@@ -60,32 +69,74 @@ def facilities(network: Network, station_id: str, lang: str) -> dict:
     return {"station": station, "facilities": items, "ai_generated": True, "cached": cached}
 
 
-def generate(name_ko: str, name_en: str, lang: str) -> list[dict]:
-    """Gemini로 역 하나·언어 하나의 시설 예시를 만든다. 서버와 미리 만들기 스크립트가 같이 쓴다.
+def _korean_list(station_id: str, name_ko: str) -> list[dict]:
+    """번역할 한국어 목록. 저장된 것이 있으면 그대로 쓰고, 없으면 만들어 저장한다."""
+    korean = load_cached(station_id, "ko")
+    if korean is None:
+        korean = generate_korean(name_ko)
+        save_cached(station_id, "ko", korean)
+    return korean
 
+
+def generate_korean(name_ko: str) -> list[dict]:
+    """Gemini로 역 하나의 한국어 시설 예시를 만든다. 다른 언어는 이 목록을 번역한다 (translate).
+
+    서버와 미리 만들기 스크립트(scripts/generate_facilities.py)가 같이 쓴다.
     키가 없으면 MissingSettingError, Gemini 실패는 client.AIUnavailableError, 답이 틀리면 ValueError.
     """
-    system_prompt, user_prompt = prompts.facilities_prompt(name_ko, name_en, lang)
+    system_prompt, user_prompt = prompts.facilities_prompt(name_ko)
     text = client.generate_json(system_prompt, user_prompt, list[Facility])
-    return _clean(text, lang)
+    return _clean(text)
+
+
+def translate(korean: list[dict], name_en: str, lang: str) -> list[dict]:
+    """한국어 목록을 [lang]으로 옮긴다. 항목 수·순서·category는 그대로 두고 name과 detail만 바꾼다.
+
+    답이 틀리면(check_translation) TRANSLATE_TRIES번까지 다시 부르고, 그래도 틀리면 ValueError.
+    Gemini 호출 자체가 실패하면 client.AIUnavailableError (다시 부르지 않는다).
+    """
+    system_prompt, user_prompt = prompts.facilities_translate_prompt(korean, name_en, lang)
+    for attempt in range(1, TRANSLATE_TRIES + 1):
+        text = client.generate_json(system_prompt, user_prompt, list[Facility])
+        try:
+            return check_translation(text, korean, lang)
+        except ValueError as e:
+            if attempt == TRANSLATE_TRIES:
+                raise
+            logger.warning("주변 시설 번역 답이 틀려서 다시 부름 (%s): %s", lang, e)
+    raise AssertionError("여기에는 오지 않는다")
 
 
 _HANGUL = re.compile(r"[가-힣ㄱ-ㆎ]")  # 한글 글자·자모
 
 
-def _clean(text: str, lang: str) -> list[dict]:
-    """Gemini 답을 확인하고 정리한다: 종류마다 1개만, 항상 같은 순서.
+def check_translation(text: str, korean: list[dict], lang: str) -> list[dict]:
+    """번역 답을 검사한다: 항목 수와 category 순서가 한국어와 같아야 하고, 한글이 섞이면 안 된다.
 
-    하나도 없거나, 한국어가 아닌 언어인데 한글이 섞였으면 ValueError (저장하지 않는다).
+    틀리면 ValueError (저장하지 않는다).
     """
     try:
         parsed = _FACILITY_LIST.validate_json(text)
     except ValidationError as e:
-        raise ValueError(f"Gemini 답의 모양이 틀립니다: {e.errors()[0]['msg']}") from e
-    mixed = [f.name for f in parsed if _HANGUL.search(f.name + f.detail)] if lang != "ko" else []
+        raise ValueError(f"번역 답의 모양이 틀립니다: {e.errors()[0]['msg']}") from e
+    if len(parsed) != len(korean):
+        raise ValueError(f"번역 답의 항목 수({len(parsed)})가 한국어({len(korean)})와 다릅니다")
+    got = [f.category for f in parsed]
+    if got != [k["category"] for k in korean]:
+        raise ValueError(f"번역 답의 category 순서가 한국어와 다릅니다: {got}")
+    mixed = [f.name for f in parsed if _HANGUL.search(f.name + f.detail)]
     if mixed:
-        # 실제로 ja 요청에 한국어로 답한 적이 있다 (2026-11-18)
+        # 따로 만들던 때 ja 요청에 한국어로 답한 적이 있다 (2026-11-18). 번역에서도 같은 실수를 막는다
         raise ValueError(f"{lang}로 요청했는데 한글이 섞인 답이 왔습니다: {mixed[0]}")
+    return [f.model_dump() for f in parsed]
+
+
+def _clean(text: str) -> list[dict]:
+    """한국어 답을 확인하고 정리한다: 종류마다 1개만, 항상 같은 순서. 하나도 없으면 ValueError."""
+    try:
+        parsed = _FACILITY_LIST.validate_json(text)
+    except ValidationError as e:
+        raise ValueError(f"Gemini 답의 모양이 틀립니다: {e.errors()[0]['msg']}") from e
     first = {}
     for facility in parsed:
         first.setdefault(facility.category, facility)

@@ -113,6 +113,7 @@ class _MeetingInputScreenState extends State<MeetingInputScreen> {
           AppStrings.text('{person}의 출발역을 입력해 주세요.')
               .replaceAll('{person}', person),
         );
+        return; // 빈 칸이 있으면 결과 화면으로 넘어가지 않는다
       }
     }
 

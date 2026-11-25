@@ -1,0 +1,372 @@
+// 화면 글자 다국어 테스트: 앱 언어를 바꾸면 시연 화면의 주요 글자가 그 언어로 보여야 한다.
+// 글자 표는 lib/localization/app_strings.dart (한국어 문장이 키, 5개 언어 번역).
+// 서버를 부르는 화면은 가짜 서버(MockClient)를 쓴다.
+import 'dart:convert';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+import 'package:subway_app/api/api_client.dart';
+import 'package:subway_app/data/favorite_routes.dart';
+import 'package:subway_app/screens/favorites_screen.dart';
+import 'package:subway_app/screens/home_screen.dart';
+import 'package:subway_app/screens/meeting_input_screen.dart';
+import 'package:subway_app/screens/meeting_result_screen.dart';
+import 'package:subway_app/screens/route_result_screen.dart';
+import 'package:subway_app/screens/subway_map_screen.dart';
+import 'package:subway_app/widgets/language_selector.dart';
+
+Future<void> show(WidgetTester tester, Widget screen) async {
+  await tester.pumpWidget(MaterialApp(home: screen));
+  await tester.pumpAndSettle();
+}
+
+final hangul = RegExp('[가-힣]');
+
+http.Response jsonResponse(Object body, [int status = 200]) =>
+    http.Response.bytes(utf8.encode(jsonEncode(body)), status);
+
+/// 가짜 서버: 역 이름은 요청한 언어(ko·en)로, 그 밖은 영어로 답한다.
+ApiClient fakeClient() => ApiClient(
+  baseUrl: 'http://test',
+  client: MockClient((request) async {
+    final path = request.url.path;
+    final lang =
+        request.url.queryParameters['lang'] ??
+        (jsonDecode(request.body) as Map<String, dynamic>)['lang'] as String;
+    final names = lang == 'ko'
+        ? {
+            '101': '신도림',
+            '416': '노원',
+            '805': '장지',
+            '701': '먹골',
+            '207': '교대',
+            '201': '문래',
+          }
+        : {
+            '101': 'Sindorim',
+            '416': 'Nowon',
+            '805': 'Jangji',
+            '701': 'Meokgol',
+            '207': "Seoul Nat'l Univ. of Education",
+            '201': 'Mullae',
+          };
+    Map<String, Object?> ref(String id) => {'id': id, 'name': names[id]};
+    switch (path) {
+      case '/stations':
+        return jsonResponse({
+          'stations': [
+            for (final e in names.entries)
+              {
+                'id': e.key,
+                'name': e.value,
+                'lines': [7],
+              },
+          ],
+        });
+      case '/meeting-station':
+        return jsonResponse({
+          'criteria': 'fairness',
+          'station': ref('701'),
+          'participants': [
+            {'start': ref('101'), 'travel_sec': 2820, 'transfer_count': 2},
+            {'start': ref('416'), 'travel_sec': 2580, 'transfer_count': 0},
+            {'start': ref('805'), 'travel_sec': 2820, 'transfer_count': 1},
+          ],
+          'total_travel_sec': 8220,
+          'max_travel_sec': 2820,
+        });
+      case '/routes':
+        return jsonResponse({
+          'criteria':
+              (jsonDecode(request.body) as Map<String, dynamic>)['criteria'],
+          'start': ref('101'),
+          'end': ref('207'),
+          'total_sec': 3180,
+          'transfer_count': 0,
+          'cost_won': 2560,
+          'segments': [
+            {
+              'line': 2,
+              'board': ref('101'),
+              'alight': ref('207'),
+              'direction': ref('201'),
+              'stations': [ref('101'), ref('201'), ref('207')],
+              'ride_sec': 3180,
+            },
+          ],
+          'transfers': [],
+        });
+      case '/explain':
+        return jsonResponse({
+          'explanation': 'Everyone arrives in 43 to 47 minutes.',
+          'cached': true,
+        });
+      case '/stations/701/facilities':
+        return jsonResponse({
+          'station': ref('701'),
+          'facilities': [
+            {
+              'category': 'cafe',
+              'name': 'Starbucks Meokgol Station',
+              'detail': 'Exit 1 · 1 min walk',
+            },
+          ],
+          'ai_generated': true,
+          'cached': true,
+        });
+    }
+    return jsonResponse({
+      'error': {'code': 'NOT_FOUND', 'message': path},
+    }, 404);
+  }),
+);
+
+MeetingResultScreen meetingResult() => MeetingResultScreen(
+  departures: const ['신도림', '노원', '장지'],
+  criteria: 'fairness',
+  criteriaLabel: '공평성',
+  client: fakeClient(),
+);
+
+void main() {
+  setUp(() => LanguageSettings.selected.value = AppLanguage.korean);
+  tearDown(() => LanguageSettings.selected.value = AppLanguage.korean);
+
+  group('모임역 입력', () {
+    testWidgets('영어 모드에서 글자가 모두 영어', (tester) async {
+      LanguageSettings.selected.value = AppLanguage.english;
+      await show(tester, const MeetingInputScreen());
+      for (final text in [
+        'Find a meeting station',
+        'Fastest',
+        'Fairness',
+        'Fewest transfers',
+        'Me',
+        'Friend 1',
+        'Meeting station',
+        'Home',
+      ]) {
+        expect(find.text(text), findsWidgets, reason: text);
+      }
+      expect(find.textContaining(hangul), findsNothing);
+    });
+
+    testWidgets('일본어를 고르면 일본어로, 다시 한국어를 고르면 바로 한국어로', (tester) async {
+      await show(tester, const MeetingInputScreen());
+      expect(find.text('추천역 찾기'), findsOneWidget);
+
+      LanguageSettings.selected.value = AppLanguage.japanese;
+      await tester.pumpAndSettle();
+      expect(find.text('待ち合わせ駅を探す'), findsOneWidget);
+      expect(find.text('추천역 찾기'), findsNothing);
+
+      LanguageSettings.selected.value = AppLanguage.korean;
+      await tester.pumpAndSettle();
+      expect(find.text('추천역 찾기'), findsOneWidget);
+    });
+
+    testWidgets('빈 칸으로 찾으면 첫 빈 칸의 영어 안내가 뜨고 결과 화면으로 넘어가지 않는다', (tester) async {
+      LanguageSettings.selected.value = AppLanguage.english;
+      await show(tester, const MeetingInputScreen());
+      final button = find.text('Find a meeting station');
+      await tester.ensureVisible(button);
+      await tester.tap(button);
+      await tester.pumpAndSettle();
+      expect(find.text('Enter the starting station for Me.'), findsOneWidget);
+      expect(find.byType(MeetingResultScreen), findsNothing);
+    });
+  });
+
+  group('모임역 결과', () {
+    testWidgets('영어 모드에서 제목·버튼·기준·주변 시설이 영어이고 한국어 글자가 없다', (tester) async {
+      LanguageSettings.selected.value = AppLanguage.english;
+      await show(tester, meetingResult());
+      for (final text in [
+        'Recommendation',
+        'Suggested meeting station',
+        'Why this station?',
+        'Criteria: Fairness · Participants: 3',
+        'Me · Sindorim',
+        'Friend 1 · Nowon',
+        '47 min · Transfers: 2',
+        'Average travel time: 46 min · Maximum transfers: 2',
+        'AI recommendation explanation',
+        'Nearby facilities',
+        'Share',
+        'Directions',
+        'Line 7',
+      ]) {
+        expect(find.text(text), findsWidgets, reason: text);
+      }
+      expect(find.text('Starbucks Meokgol Station'), findsOneWidget);
+      expect(find.textContaining(hangul), findsNothing);
+    });
+
+    testWidgets('결과 화면에서 언어를 바꾸면 글자가 바로 바뀐다', (tester) async {
+      await show(tester, meetingResult());
+      expect(find.text('추천 만남역'), findsOneWidget);
+
+      LanguageSettings.selected.value = AppLanguage.vietnamese;
+      await tester.pumpAndSettle();
+      expect(find.text('Ga hẹn gặp được đề xuất'), findsOneWidget);
+      expect(find.text('Tiện ích xung quanh'), findsOneWidget);
+      expect(find.text('Starbucks Meokgol Station'), findsOneWidget);
+      expect(find.textContaining(hangul), findsNothing);
+    });
+
+    testWidgets('한국어 모드는 한국어 글자 그대로', (tester) async {
+      await show(tester, meetingResult());
+      for (final text in [
+        '추천 결과',
+        '추천 만남역',
+        '선택한 기준: 공평성 · 참여 인원: 3명',
+        '나 · 신도림',
+        '47분 · 환승 2회',
+        '주변 인프라',
+        '길찾기',
+      ]) {
+        expect(find.text(text), findsWidgets, reason: text);
+      }
+    });
+  });
+
+  group('홈', () {
+    testWidgets('영어 모드에서 주요 버튼이 영어', (tester) async {
+      LanguageSettings.selected.value = AppLanguage.english;
+      await show(tester, const HomeScreen());
+      for (final text in [
+        'Where are you going?',
+        'Find a route',
+        'Recent searches',
+        'View all',
+        'From',
+        'To',
+        'Meeting station',
+        'Home',
+        'Favorites',
+        'Route map',
+      ]) {
+        expect(find.text(text), findsWidgets, reason: text);
+      }
+      expect(find.byTooltip('Chatbot'), findsOneWidget);
+      expect(find.text('경로 검색'), findsNothing);
+      // 최근 검색의 역 이름은 저장한 한국어 이름 그대로 보인다 (화면 글자가 아님)
+    });
+
+    testWidgets('빈 칸으로 검색하면 영어 안내가 뜬다', (tester) async {
+      LanguageSettings.selected.value = AppLanguage.english;
+      await show(tester, const HomeScreen());
+      final button = find.widgetWithText(FilledButton, 'Find a route');
+      await tester.ensureVisible(button);
+      await tester.tap(button);
+      await tester.pump();
+      expect(
+        find.text('Enter both your starting and destination stations.'),
+        findsOneWidget,
+      );
+    });
+  });
+
+  group('즐겨찾기', () {
+    testWidgets('영어 모드에서 글자가 영어', (tester) async {
+      FavoriteRoutes.items.value = const [];
+      LanguageSettings.selected.value = AppLanguage.english;
+      await show(tester, const FavoritesScreen());
+      for (final text in [
+        'Favorites',
+        'Saved routes',
+        'No saved routes yet',
+        'Home',
+        'Route map',
+      ]) {
+        expect(find.text(text), findsWidgets, reason: text);
+      }
+      expect(find.textContaining(hangul), findsNothing);
+    });
+  });
+
+  group('노선도', () {
+    // 테스트에는 서버가 없어서 역 이름 불러오기는 실패한다. 그 안내도 영어여야 한다.
+    testWidgets('영어 모드에서 제목·안내·범례가 영어이고 한국어 글자가 없다', (tester) async {
+      LanguageSettings.selected.value = AppLanguage.english;
+      await show(tester, const SubwayMapScreen());
+      for (final text in [
+        'Route map',
+        'Fictional route map · Search by Korean or English name, or number',
+        'All',
+        'Line 1',
+        'Transfer station',
+        'Regular station',
+        'Home',
+        'Favorites',
+      ]) {
+        expect(find.text(text), findsWidgets, reason: text);
+      }
+      expect(find.byTooltip('Zoom in'), findsOneWidget);
+      expect(find.textContaining(hangul), findsNothing);
+    });
+
+    testWidgets('빈 칸으로 찾으면 영어 안내가 뜬다', (tester) async {
+      LanguageSettings.selected.value = AppLanguage.english;
+      await show(tester, const SubwayMapScreen());
+      await tester.tap(find.byTooltip('Search stations'));
+      await tester.pump();
+      expect(find.text('Enter a station name or number.'), findsOneWidget);
+    });
+  });
+
+  group('경로 결과', () {
+    testWidgets('영어 모드에서 제목·탭·상세 경로가 영어', (tester) async {
+      LanguageSettings.selected.value = AppLanguage.english;
+      await show(
+        tester,
+        RouteResultScreen(
+          departure: 'Sindorim',
+          arrival: "Seoul Nat'l Univ. of Education",
+          client: fakeClient(),
+        ),
+      );
+      for (final text in [
+        'Route results',
+        'Fastest',
+        'Fewest transfers',
+        'Estimated time: 53 min · Transfers: 0',
+        'AI route guide',
+        'Route details',
+        'View all stops',
+        'Total time',
+        'Board at Sindorim',
+        'Line 2 · Toward Mullae · Stops: 2',
+        "Get off at Seoul Nat'l Univ. of Education",
+      ]) {
+        expect(find.text(text), findsWidgets, reason: text);
+      }
+      expect(find.textContaining(hangul), findsNothing);
+    });
+
+    testWidgets('한국어 모드는 한국어 글자 그대로', (tester) async {
+      await show(
+        tester,
+        RouteResultScreen(
+          departure: '신도림',
+          arrival: '교대',
+          client: fakeClient(),
+        ),
+      );
+      for (final text in [
+        '경로 결과',
+        '최단시간',
+        '예상 소요 53분 · 환승 0회',
+        'AI 경로 설명',
+        '상세 경로',
+        '신도림 승차',
+        '2호선 · 문래 방면 · 2개 역 이동',
+        '교대 하차',
+      ]) {
+        expect(find.text(text), findsWidgets, reason: text);
+      }
+    });
+  });
+}

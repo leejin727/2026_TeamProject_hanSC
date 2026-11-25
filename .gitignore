@@ -28,3 +28,5 @@ subfit_nano_v*/
 
 # ===== 기타 =====
 *.log
+HANDOFF.md
+demo-video/

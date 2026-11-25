@@ -205,6 +205,38 @@ class MeetingResult {
   final int maxTravelSec;
 }
 
+/// 주변 시설 종류. 화면에는 늘 이 순서로 보여 준다.
+const facilityCategories = [
+  'cafe',
+  'restaurant',
+  'convenience_store',
+  'pharmacy',
+  'restroom',
+];
+
+/// GET /stations/{id}/facilities의 시설 하나 (api-spec.md 4-1장).
+/// 응답의 ai_generated 값은 읽지 않는다: 화면에 쓰지 않기로 했다 (2026-11-25 이진 결정).
+class Facility {
+  const Facility({
+    required this.category,
+    required this.name,
+    required this.detail,
+  });
+
+  factory Facility.fromJson(Map<String, dynamic> json) => Facility(
+    category: json['category'] as String,
+    name: json['name'] as String,
+    detail: json['detail'] as String,
+  );
+
+  /// cafe, restaurant, convenience_store, pharmacy, restroom 중 하나
+  final String category;
+  final String name;
+
+  /// 위치 안내 한 줄. 예: "2번 출구 · 도보 3분"
+  final String detail;
+}
+
 /// 챗봇 답에 딸려 오는 문장 카드: 역무원에게 보여 줄 한국어 문장.
 class ChatPhrase {
   const ChatPhrase({
@@ -293,6 +325,9 @@ class ApiClient {
   /// 역 목록은 바뀌지 않으므로 언어별로 한 번만 받아 둔다.
   final Map<String, Future<List<Station>>> _stations = {};
 
+  /// 주변 시설도 같은 역·언어면 바뀌지 않으므로 한 번만 받아 둔다 ('역 ID/언어' → 목록).
+  final Map<String, Future<List<Facility>>> _facilities = {};
+
   Future<List<Station>> stations(String lang) {
     return _stations[lang] ??= _get('/stations?lang=$lang')
         .then(
@@ -368,6 +403,34 @@ class ApiClient {
       'lang': lang,
     });
     return MeetingResult.fromJson(json);
+  }
+
+  /// GET /stations/{id}/facilities?lang=. [lang]은 앱 언어 코드 (ko, en, ja, zh-Hans, zh-Hant, vi).
+  /// 늘 [facilityCategories] 순서로 돌려준다. 실패한 결과는 저장하지 않는다 (다시 시도할 수 있게).
+  Future<List<Facility>> facilities(String stationId, String lang) {
+    final key = '$stationId/$lang';
+    return _facilities[key] ??=
+        _get(
+              '/stations/${Uri.encodeComponent(stationId)}/facilities'
+              '?lang=${Uri.encodeQueryComponent(lang)}',
+            )
+            .then((json) {
+              final items = [
+                for (final f in json['facilities'] as List)
+                  Facility.fromJson(f as Map<String, dynamic>),
+              ];
+              int rank(Facility f) {
+                final i = facilityCategories.indexOf(f.category);
+                return i < 0 ? facilityCategories.length : i;
+              }
+
+              items.sort((a, b) => rank(a).compareTo(rank(b)));
+              return items;
+            })
+            .catchError((Object error) {
+              _facilities.remove(key);
+              throw error;
+            });
   }
 
   /// POST /explain (type=route). 서버가 경로를 다시 계산해서 [explainLang]으로 설명한다.

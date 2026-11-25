@@ -15424,158 +15424,158 @@
    },
    {
     "category": "restaurant",
-    "name": "먹골참숯갈비",
+    "name": "먹골 숯불갈비",
     "detail": "2번 출구 · 도보 3분"
    },
    {
     "category": "convenience_store",
     "name": "CU 먹골역점",
-    "detail": "역 안 · 대합실"
+    "detail": "3번 출구 · 지하 1층"
    },
    {
     "category": "pharmacy",
-    "name": "온누리약국",
-    "detail": "3번 출구 · 도보 2분"
+    "name": "온누리 약국",
+    "detail": "4번 출구 · 도보 2분"
    },
    {
     "category": "restroom",
-    "name": "먹골역 공중화장실",
-    "detail": "역 안 · 지하 1층 개찰구 옆"
+    "name": "역사 내 공중화장실",
+    "detail": "대합실 지하 1층"
    }
   ],
   "en": [
    {
     "category": "cafe",
-    "name": "Mega Coffee",
+    "name": "Starbucks Meokgol Station",
     "detail": "Exit 1 · 1 min walk"
    },
    {
     "category": "restaurant",
-    "name": "Meokgol Gamjatang",
-    "detail": "Exit 5 · 5 min walk"
+    "name": "Meokgol Charcoal Galbi",
+    "detail": "Exit 2 · 3 min walk"
    },
    {
     "category": "convenience_store",
-    "name": "CU",
-    "detail": "Exit 2 · 2 min walk"
+    "name": "CU Meokgol Station",
+    "detail": "Exit 3 · B1"
    },
    {
     "category": "pharmacy",
-    "name": "Meokgol Medipharm",
-    "detail": "Exit 3 · 3 min walk"
+    "name": "Onnuri Pharmacy",
+    "detail": "Exit 4 · 2 min walk"
    },
    {
     "category": "restroom",
-    "name": "Station Restroom",
-    "detail": "Inside Station · Concourse Level"
+    "name": "Station Public Restroom",
+    "detail": "Concourse B1"
    }
   ],
   "ja": [
    {
     "category": "cafe",
-    "name": "モクゴルコーヒー",
-    "detail": "出口1・徒歩2分"
+    "name": "スターバックス メクコル駅店",
+    "detail": "1番出口 · 徒歩1分"
    },
    {
     "category": "restaurant",
-    "name": "ハル食堂",
-    "detail": "出口2・徒歩3分"
+    "name": "メクコル 炭火カルビ",
+    "detail": "2番出口 · 徒歩3分"
    },
    {
     "category": "convenience_store",
-    "name": "セブンイレブン モクゴル店",
-    "detail": "出口3・徒歩1分"
+    "name": "CU メクコル駅店",
+    "detail": "3番出口 · 地下1階"
    },
    {
     "category": "pharmacy",
-    "name": "メディカル薬局",
-    "detail": "出口4・徒歩4分"
+    "name": "オンヌリ薬局",
+    "detail": "4番出口 · 徒歩2分"
    },
    {
     "category": "restroom",
-    "name": "駅構内トイレ",
-    "detail": "地下1階・コンコース"
+    "name": "駅構内公衆トイレ",
+    "detail": "待合室地下1階"
    }
   ],
   "zh-Hans": [
    {
     "category": "cafe",
-    "name": "星巴克 墨谷店",
-    "detail": "2号出口 · 步行2分钟"
+    "name": "星巴克 墨谷站店",
+    "detail": "1号出口 · 步行1分钟"
    },
    {
     "category": "restaurant",
-    "name": "本家排骨",
-    "detail": "1号出口 · 步行5分钟"
-   },
-   {
-    "category": "convenience_store",
-    "name": "CU 便利店",
-    "detail": "3号出口 · 步行1分钟"
-   },
-   {
-    "category": "pharmacy",
-    "name": "健康大药房",
+    "name": "墨谷炭火排骨",
     "detail": "2号出口 · 步行3分钟"
    },
    {
+    "category": "convenience_store",
+    "name": "CU 墨谷站店",
+    "detail": "3号出口 · 地下1层"
+   },
+   {
+    "category": "pharmacy",
+    "name": "温国家药房",
+    "detail": "4号出口 · 步行2分钟"
+   },
+   {
     "category": "restroom",
-    "name": "地铁站内洗手间",
-    "detail": "站厅层 · 检票口旁"
+    "name": "站内公共卫生间",
+    "detail": "候车大厅 地下1层"
    }
   ],
   "zh-Hant": [
    {
     "category": "cafe",
-    "name": "星巴克 墨谷站店",
-    "detail": "1號出口 · 步行 2分鐘"
+    "name": "星巴克墨谷站店",
+    "detail": "1號出口 · 步行 1分鐘"
    },
    {
     "category": "restaurant",
-    "name": "本粥與拌飯",
-    "detail": "2號出口 · 步行 5分鐘"
+    "name": "墨谷炭火排骨",
+    "detail": "2號出口 · 步行 3分鐘"
    },
    {
     "category": "convenience_store",
     "name": "CU 墨谷站店",
-    "detail": "3號出口 · 步行 1分鐘"
+    "detail": "3號出口 · 地下 1樓"
    },
    {
     "category": "pharmacy",
-    "name": "健康藥局",
-    "detail": "1號出口 · 步行 3分鐘"
+    "name": "Onnuri 藥局",
+    "detail": "4號出口 · 步行 2分鐘"
    },
    {
     "category": "restroom",
-    "name": "站內洗手間",
-    "detail": "地鐵站內 · 候車大廳"
+    "name": "站內公共廁所",
+    "detail": "大廳地下 1樓"
    }
   ],
   "vi": [
    {
     "category": "cafe",
-    "name": "Starbucks Meokgol",
-    "detail": "Lối ra 1 · Đi bộ 2 phút"
+    "name": "Starbucks Meokgol Station",
+    "detail": "Lối ra 1 · Đi bộ 1 phút"
    },
    {
     "category": "restaurant",
-    "name": "Myeongdong Kyoja",
-    "detail": "Lối ra 3 · Đi bộ 5 phút"
+    "name": "Meokgol Suthbul Galbi",
+    "detail": "Lối ra 2 · Đi bộ 3 phút"
    },
    {
     "category": "convenience_store",
     "name": "CU Meokgol Station",
-    "detail": "Lối ra 5 · Bên trong sảnh"
+    "detail": "Lối ra 3 · Tầng hầm 1"
    },
    {
     "category": "pharmacy",
-    "name": "Medipharm Yakguk",
-    "detail": "Lối ra 2 · Đi bộ 1 phút"
+    "name": "Onnuri Pharmacy",
+    "detail": "Lối ra 4 · Đi bộ 2 phút"
    },
    {
     "category": "restroom",
-    "name": "Nhà vệ sinh công cộng",
-    "detail": "Bên trong ga · Gần cổng soát vé"
+    "name": "Nhà vệ sinh công cộng trong ga",
+    "detail": "Phòng đợi tầng hầm 1"
    }
   ]
  },
@@ -16080,18 +16080,18 @@
    },
    {
     "category": "restaurant",
-    "name": "모란식당",
-    "detail": "2번 출구 · 도보 5분"
+    "name": "모란분식",
+    "detail": "2번 출구 · 도보 3분"
    },
    {
     "category": "convenience_store",
-    "name": "GS25 모란역점",
-    "detail": "3번 출구 · 지하 1층"
+    "name": "CU 모란역점",
+    "detail": "3번 출구 · 도보 1분"
    },
    {
     "category": "pharmacy",
-    "name": "모란약국",
-    "detail": "4번 출구 · 도보 1분"
+    "name": "건강약국",
+    "detail": "4번 출구 · 도보 2분"
    },
    {
     "category": "restroom",
@@ -16102,136 +16102,136 @@
   "en": [
    {
     "category": "cafe",
-    "name": "Starbucks Moran Station",
+    "name": "Moran Coffee",
     "detail": "Exit 1 · 2 min walk"
    },
    {
     "category": "restaurant",
-    "name": "Moran Traditional Market Restaurant",
-    "detail": "Exit 4 · 5 min walk"
+    "name": "Moran Bunsik",
+    "detail": "Exit 2 · 3 min walk"
    },
    {
     "category": "convenience_store",
-    "name": "CU Moran",
-    "detail": "Exit 2 · 1 min walk"
+    "name": "CU Moran Station",
+    "detail": "Exit 3 · 1 min walk"
    },
    {
     "category": "pharmacy",
-    "name": "Moran Medi Pharmacy",
-    "detail": "Exit 3 · 3 min walk"
+    "name": "Geonhang Pharmacy",
+    "detail": "Exit 4 · 2 min walk"
    },
    {
     "category": "restroom",
-    "name": "Station Restroom",
-    "detail": "Inside Station · Concourse Level"
+    "name": "Public Restroom",
+    "detail": "Inside Station · Concourse"
    }
   ],
   "ja": [
    {
     "category": "cafe",
     "name": "モランコーヒー",
-    "detail": "出口1・徒歩2分"
+    "detail": "1番出口 · 徒歩2分"
    },
    {
     "category": "restaurant",
-    "name": "ハル食堂",
-    "detail": "出口3・徒歩5分"
+    "name": "モランブンシク",
+    "detail": "2番出口 · 徒歩3分"
    },
    {
     "category": "convenience_store",
-    "name": "セブンイレブン モラン店",
-    "detail": "出口2・徒歩1分"
+    "name": "CU モラン駅店",
+    "detail": "3番出口 · 徒歩1分"
    },
    {
     "category": "pharmacy",
     "name": "健康薬局",
-    "detail": "出口4・徒歩3分"
+    "detail": "4番出口 · 徒歩2分"
    },
    {
     "category": "restroom",
-    "name": "駅構内トイレ",
-    "detail": "地下1階・改札内"
+    "name": "公衆トイレ",
+    "detail": "駅構内 · 待合室"
    }
   ],
   "zh-Hans": [
    {
     "category": "cafe",
-    "name": "星巴克 牡丹站店",
-    "detail": "2号出口 · 步行2分钟"
+    "name": "牡丹咖啡",
+    "detail": "1号出口 · 步行2分钟"
    },
    {
     "category": "restaurant",
-    "name": "本家 萝卜汤饭",
-    "detail": "3号出口 · 步行5分钟"
+    "name": "牡丹小吃",
+    "detail": "2号出口 · 步行3分钟"
    },
    {
     "category": "convenience_store",
-    "name": "CU 便利店 牡丹站店",
-    "detail": "1号出口 · 步行1分钟"
+    "name": "CU 牡丹站店",
+    "detail": "3号出口 · 步行1分钟"
    },
    {
     "category": "pharmacy",
-    "name": "健康大药房",
-    "detail": "4号出口 · 步行3分钟"
+    "name": "健康药店",
+    "detail": "4号出口 · 步行2分钟"
    },
    {
     "category": "restroom",
-    "name": "站内公厕",
-    "detail": "地下一层 · 候车室旁"
+    "name": "公共卫生间",
+    "detail": "站内 · 候车大厅"
    }
   ],
   "zh-Hant": [
    {
     "category": "cafe",
-    "name": "星巴克",
-    "detail": "2號出口 · 步行 3分鐘"
+    "name": "牡丹咖啡",
+    "detail": "1號出口 · 步行2分鐘"
    },
    {
     "category": "restaurant",
-    "name": "本家",
-    "detail": "1號出口 · 步行 5分鐘"
+    "name": "牡丹小吃",
+    "detail": "2號出口 · 步行3分鐘"
    },
    {
     "category": "convenience_store",
-    "name": "CU",
-    "detail": "3號出口 · 步行 1分鐘"
+    "name": "CU 牡丹站店",
+    "detail": "3號出口 · 步行1分鐘"
    },
    {
     "category": "pharmacy",
-    "name": "江南藥局",
-    "detail": "2號出口 · 步行 4分鐘"
+    "name": "健康藥局",
+    "detail": "4號出口 · 步行2分鐘"
    },
    {
     "category": "restroom",
-    "name": "車站內部洗手間",
-    "detail": "車站內部 · 大廳"
+    "name": "公共廁所",
+    "detail": "車站內 · 大廳"
    }
   ],
   "vi": [
    {
     "category": "cafe",
-    "name": "Starbucks Moran",
-    "detail": "Lối ra 2 · Đi bộ 2 phút"
+    "name": "Moran Coffee",
+    "detail": "Lối ra 1 · Đi bộ 2 phút"
    },
    {
     "category": "restaurant",
-    "name": "Moran Traditional Market Restaurant",
-    "detail": "Lối ra 4 · Đi bộ 5 phút"
+    "name": "Moran Bunsik",
+    "detail": "Lối ra 2 · Đi bộ 3 phút"
    },
    {
     "category": "convenience_store",
-    "name": "CU Moran Station",
-    "detail": "Lối ra 1 · Trong nhà ga"
-   },
-   {
-    "category": "pharmacy",
-    "name": "Moran Pharmacy",
+    "name": "CU Moran",
     "detail": "Lối ra 3 · Đi bộ 1 phút"
    },
    {
+    "category": "pharmacy",
+    "name": "Tiệm thuốc Geon-gang",
+    "detail": "Lối ra 4 · Đi bộ 2 phút"
+   },
+   {
     "category": "restroom",
-    "name": "Nhà vệ sinh công cộng",
-    "detail": "Trong nhà ga · Sảnh chính"
+    "name": "Phòng vệ sinh công cộng",
+    "detail": "Trong ga · Phòng đợi"
    }
   ]
  },
