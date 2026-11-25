@@ -1,4 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- 서버(Railway)에 연결하려면 필요하다. 예전에는 debug·profile에만 있어서 release APK가 서버에 붙지 못했다. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
     <application
         android:label="subway_app"
         android:name="${applicationName}"
