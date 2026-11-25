@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../data/favorite_routes.dart';
+import '../l10n/strings.dart';
 import 'route_result_screen.dart';
 import '../data/recent_routes.dart';
 import 'subway_map_screen.dart';
@@ -33,9 +34,9 @@ class FavoritesScreen extends StatelessWidget {
                         children: [
                           Row(
                             children: [
-                              const Text(
-                                '저장한 경로',
-                                style: TextStyle(
+                              Text(
+                                Tr.of(context)('fav.saved'),
+                                style: const TextStyle(
                                   color: _textColor,
                                   fontSize: 18,
                                   fontWeight: FontWeight.w900,
@@ -43,7 +44,9 @@ class FavoritesScreen extends StatelessWidget {
                               ),
                               const Spacer(),
                               Text(
-                                '${routes.length}개',
+                                Tr.of(context)('fav.count', {
+                                  'n': routes.length,
+                                }),
                                 style: const TextStyle(
                                   color: _muted,
                                   fontSize: 12,
@@ -53,7 +56,7 @@ class FavoritesScreen extends StatelessWidget {
                           ),
                           const SizedBox(height: 18),
                           if (routes.isEmpty)
-                            _buildEmptyState()
+                            _buildEmptyState(context)
                           else
                             for (final route in routes)
                               Padding(
@@ -61,16 +64,19 @@ class FavoritesScreen extends StatelessWidget {
                                 child: _buildRouteCard(context, route),
                               ),
                           const SizedBox(height: 6),
-                          const Row(
+                          Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Icon(Icons.info_outline, size: 15, color: _muted),
-                              SizedBox(width: 7),
+                              const Icon(
+                                Icons.info_outline,
+                                size: 15,
+                                color: _muted,
+                              ),
+                              const SizedBox(width: 7),
                               Expanded(
                                 child: Text(
-                                  '현재 즐겨찾기는 앱 실행 중에만 유지돼요.\n'
-                                  '새로고침하거나 재시작하면 초기화됩니다.',
-                                  style: TextStyle(
+                                  Tr.of(context)('fav.note'),
+                                  style: const TextStyle(
                                     color: _muted,
                                     fontSize: 11,
                                     height: 1.6,
@@ -100,14 +106,14 @@ class FavoritesScreen extends StatelessWidget {
         children: [
           IconButton(
             onPressed: () => Navigator.of(context).pop(),
-            tooltip: '뒤로가기',
+            tooltip: Tr.of(context)('common.back'),
             icon: const Icon(Icons.chevron_left, color: _navy),
           ),
-          const Expanded(
+          Expanded(
             child: Text(
-              '즐겨찾기',
+              Tr.of(context)('fav.title'),
               textAlign: TextAlign.center,
-              style: TextStyle(
+              style: const TextStyle(
                 color: _textColor,
                 fontSize: 17,
                 fontWeight: FontWeight.w800,
@@ -120,7 +126,8 @@ class FavoritesScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildEmptyState() {
+  Widget _buildEmptyState(BuildContext context) {
+    final t = Tr.of(context);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 34),
       margin: const EdgeInsets.only(bottom: 18),
@@ -128,25 +135,24 @@ class FavoritesScreen extends StatelessWidget {
         color: _lightBackground,
         borderRadius: BorderRadius.circular(16),
       ),
-      child: const Column(
+      child: Column(
         children: [
-          Icon(Icons.star_border_rounded, color: _navy, size: 36),
-          SizedBox(height: 12),
+          const Icon(Icons.star_border_rounded, color: _navy, size: 36),
+          const SizedBox(height: 12),
           Text(
-            '아직 저장한 경로가 없어요',
+            t('fav.empty'),
             textAlign: TextAlign.center,
-            style: TextStyle(
+            style: const TextStyle(
               color: _textColor,
               fontSize: 16,
               fontWeight: FontWeight.w700,
             ),
           ),
-          SizedBox(height: 8),
+          const SizedBox(height: 8),
           Text(
-            '최근 검색이나 경로 결과의 별을 눌러\n'
-            '자주 찾는 경로를 추가해 보세요.',
+            t('fav.emptyHint'),
             textAlign: TextAlign.center,
-            style: TextStyle(color: _muted, fontSize: 12, height: 1.6),
+            style: const TextStyle(color: _muted, fontSize: 12, height: 1.6),
           ),
         ],
       ),
@@ -188,9 +194,9 @@ class FavoritesScreen extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    const Text(
-                      '경로 결과 보기 · 상세 정보는 예시',
-                      style: TextStyle(color: _muted, fontSize: 11),
+                    Text(
+                      Tr.of(context)('fav.open'),
+                      style: const TextStyle(color: _muted, fontSize: 11),
                     ),
                   ],
                 ),
@@ -201,7 +207,7 @@ class FavoritesScreen extends StatelessWidget {
             onPressed: () {
               FavoriteRoutes.toggle(route.departure, route.arrival);
             },
-            tooltip: '즐겨찾기 해제',
+            tooltip: Tr.of(context)('common.favoriteRemove'),
             icon: const Icon(Icons.star_rounded, color: _navy, size: 28),
           ),
           const SizedBox(width: 8),
@@ -220,7 +226,7 @@ class FavoritesScreen extends StatelessWidget {
       child: Row(
         children: [
           _buildNavigationItem(
-            label: '홈',
+            label: Tr.of(context)('nav.home'),
             icon: Icons.home_outlined,
             selected: false,
             onPressed: () {
@@ -228,13 +234,13 @@ class FavoritesScreen extends StatelessWidget {
             },
           ),
           _buildNavigationItem(
-            label: '즐겨찾기',
+            label: Tr.of(context)('nav.favorites'),
             icon: Icons.star_rounded,
             selected: true,
             onPressed: () {},
           ),
           _buildNavigationItem(
-            label: '노선도',
+            label: Tr.of(context)('nav.map'),
             icon: Icons.map_outlined,
             selected: false,
             onPressed: () {

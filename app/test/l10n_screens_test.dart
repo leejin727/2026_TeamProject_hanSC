@@ -8,6 +8,8 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:subway_app/api/api_client.dart';
 import 'package:subway_app/l10n/strings.dart';
+import 'package:subway_app/data/favorite_routes.dart';
+import 'package:subway_app/screens/favorites_screen.dart';
 import 'package:subway_app/screens/home_screen.dart';
 import 'package:subway_app/screens/meeting_input_screen.dart';
 import 'package:subway_app/screens/meeting_result_screen.dart';
@@ -275,6 +277,24 @@ void main() {
         find.text('Please enter both departure and arrival stations.'),
         findsOneWidget,
       );
+    });
+  });
+
+  group('즐겨찾기', () {
+    testWidgets('영어 모드에서 글자가 영어', (tester) async {
+      FavoriteRoutes.items.value = const [];
+      LanguageSettings.selected.value = AppLanguage.english;
+      await show(tester, const FavoritesScreen());
+      for (final text in [
+        'Favorites',
+        'Saved routes',
+        'No saved routes yet',
+        'Home',
+        'Map',
+      ]) {
+        expect(find.text(text), findsWidgets, reason: text);
+      }
+      expect(find.textContaining(RegExp('[가-힣]')), findsNothing);
     });
   });
 
