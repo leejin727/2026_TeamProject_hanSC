@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../api/api_client.dart';
 import '../data/subway_map_data.dart';
+import '../l10n/strings.dart';
 import '../widgets/language_selector.dart';
 import 'favorites_screen.dart';
 import 'route_result_screen.dart';
@@ -22,9 +23,6 @@ Color _lineColor(int line) {
   }
 }
 
-/// 입력 화면과 같은 이름: 0번은 '나', 나머지는 '친구 1', '친구 2' …
-String _personLabel(int index) => index == 0 ? '나' : '친구 $index';
-
 class MeetingResultScreen extends StatefulWidget {
   const MeetingResultScreen({
     super.key,
@@ -40,7 +38,7 @@ class MeetingResultScreen extends StatefulWidget {
   /// 서버에 보내는 기준: 'time', 'fairness', 'transfers'
   final String criteria;
 
-  /// 화면에 보이는 기준 이름: '최단시간', '공평성', '최소환승'
+  /// 예전에 쓰던 화면용 기준 이름. 지금은 [criteria]와 앱 언어로 이름을 정한다 (l10n/strings.dart).
   final String criteriaLabel;
 
   /// 서버 연결. 테스트에서 가짜 서버를 넣을 때만 준다 (없으면 앱 전체가 쓰는 apiClient).
@@ -65,6 +63,9 @@ class _MeetingResultScreenState extends State<MeetingResultScreen> {
   String? _facilityKey;
 
   ApiClient get _client => widget.client ?? apiClient;
+
+  /// 화면 글자 (앱 언어가 ko면 한국어, 아니면 영어)
+  Tr get _t => Tr.of(context);
 
   // 역 이름 데이터는 한국어·영어만 있다. 앱 언어가 한국어가 아니면 영어 이름을 쓴다.
   String get _nameLang =>
@@ -93,7 +94,10 @@ class _MeetingResultScreenState extends State<MeetingResultScreen> {
       if (id == null) {
         throw ApiException(
           'STATION_NOT_FOUND',
-          "${_personLabel(i)}의 '$name' 역을 찾을 수 없습니다.",
+          Tr.current('meetingResult.notFound', {
+            'person': Tr.current.person(i),
+            'name': name,
+          }),
         );
       }
       ids.add(id);
@@ -137,15 +141,15 @@ class _MeetingResultScreenState extends State<MeetingResultScreen> {
     if (error is ApiException) {
       switch (error.code) {
         case 'NETWORK':
-          return '서버에 연결할 수 없습니다.\n서버가 켜져 있는지 확인해 주세요.';
+          return _t('common.serverDown');
         case 'INVALID_PARTICIPANT_COUNT':
-          return '참여 인원은 2~4명이어야 합니다.';
+          return _t('meetingResult.badCount');
         case 'NO_MEETING_STATION':
-          return '모두가 갈 수 있는 모임역이 없습니다.';
+          return _t('meetingResult.noStation');
       }
       return error.message;
     }
-    return '알 수 없는 오류가 발생했습니다.';
+    return _t('common.unknownError');
   }
 
   void _showMessage(String message) {
@@ -161,7 +165,7 @@ class _MeetingResultScreenState extends State<MeetingResultScreen> {
   /// '나'의 출발역 → 추천역 길찾기 (경로 결과 화면을 그대로 쓴다)
   void _openRoute(MeetingResult result) {
     if (result.participants.first.start.id == result.station.id) {
-      _showMessage('나의 출발역이 추천 만남역입니다.');
+      _showMessage(_t('meetingResult.myStation'));
       return;
     }
     Navigator.of(context).push(
@@ -285,7 +289,7 @@ class _MeetingResultScreenState extends State<MeetingResultScreen> {
               foregroundColor: _navy,
               side: const BorderSide(color: _border),
             ),
-            child: const Text('다시 시도'),
+            child: Text(_t('common.retry')),
           ),
         ],
       ),
@@ -299,14 +303,14 @@ class _MeetingResultScreenState extends State<MeetingResultScreen> {
         children: [
           IconButton(
             onPressed: () => Navigator.of(context).pop(),
-            tooltip: '뒤로가기',
+            tooltip: _t('common.back'),
             icon: const Icon(Icons.chevron_left, color: _navy),
           ),
-          const Expanded(
+          Expanded(
             child: Text(
-              '추천 결과',
+              _t('meetingResult.title'),
               textAlign: TextAlign.center,
-              style: TextStyle(
+              style: const TextStyle(
                 color: _textColor,
                 fontSize: 17,
                 fontWeight: FontWeight.w800,
@@ -334,9 +338,9 @@ class _MeetingResultScreenState extends State<MeetingResultScreen> {
       ),
       child: Column(
         children: [
-          const Text(
-            '추천 만남역',
-            style: TextStyle(color: Colors.white, fontSize: 12),
+          Text(
+            _t('meetingResult.station'),
+            style: const TextStyle(color: Colors.white, fontSize: 12),
           ),
           const SizedBox(height: 12),
           Text(
@@ -355,12 +359,18 @@ class _MeetingResultScreenState extends State<MeetingResultScreen> {
             alignment: WrapAlignment.center,
             children: [
               for (final line in lines)
-                _buildLineBadge(label: '$line호선', color: _lineColor(line)),
+                _buildLineBadge(
+                  label: _t('common.line', {'n': line}),
+                  color: _lineColor(line),
+                ),
             ],
           ),
           const SizedBox(height: 14),
           Text(
-            '평균 이동시간 $averageMinutes분 · 최대 환승 $maxTransfers회',
+            _t('meetingResult.summary', {
+              'avg': averageMinutes,
+              'max': maxTransfers,
+            }),
             textAlign: TextAlign.center,
             style: const TextStyle(
               color: Colors.white,
@@ -395,9 +405,9 @@ class _MeetingResultScreenState extends State<MeetingResultScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          '추천 이유',
-          style: TextStyle(
+        Text(
+          _t('meetingResult.reason'),
+          style: const TextStyle(
             color: _textColor,
             fontSize: 18,
             fontWeight: FontWeight.w900,
@@ -405,8 +415,10 @@ class _MeetingResultScreenState extends State<MeetingResultScreen> {
         ),
         const SizedBox(height: 10),
         Text(
-          '선택한 기준: ${widget.criteriaLabel} · '
-          '참여 인원: ${result.participants.length}명',
+          _t('meetingResult.criteriaUsed', {
+            'criteria': _t.criteria(widget.criteria),
+            'n': result.participants.length,
+          }),
           style: const TextStyle(
             color: _textColor,
             fontSize: 12,
@@ -430,13 +442,15 @@ class _MeetingResultScreenState extends State<MeetingResultScreen> {
         children: [
           Expanded(
             child: Text(
-              '${_personLabel(index)} · ${participant.start.name}',
+              '${_t.person(index)} · ${participant.start.name}',
               style: const TextStyle(color: _textColor, fontSize: 12),
             ),
           ),
           Text(
-            '${minutesOf(participant.travelSec)}분 · '
-            '환승 ${participant.transferCount}회',
+            _t('meetingResult.travel', {
+              'min': minutesOf(participant.travelSec),
+              'n': participant.transferCount,
+            }),
             style: const TextStyle(color: _muted, fontSize: 12),
           ),
         ],
@@ -455,13 +469,13 @@ class _MeetingResultScreenState extends State<MeetingResultScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
+          Row(
             children: [
-              Icon(Icons.auto_awesome, color: _navy, size: 16),
-              SizedBox(width: 6),
+              const Icon(Icons.auto_awesome, color: _navy, size: 16),
+              const SizedBox(width: 6),
               Text(
-                'AI 추천 이유',
-                style: TextStyle(
+                _t('meetingResult.aiReason'),
+                style: const TextStyle(
                   color: _textColor,
                   fontSize: 12,
                   fontWeight: FontWeight.w800,
@@ -474,17 +488,17 @@ class _MeetingResultScreenState extends State<MeetingResultScreen> {
             future: _explanationFuture(),
             builder: (context, snapshot) {
               if (snapshot.connectionState != ConnectionState.done) {
-                return const Row(
+                return Row(
                   children: [
-                    SizedBox(
+                    const SizedBox(
                       width: 14,
                       height: 14,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     ),
-                    SizedBox(width: 10),
+                    const SizedBox(width: 10),
                     Text(
-                      '추천 이유를 만드는 중입니다…',
-                      style: TextStyle(color: _muted, fontSize: 12),
+                      _t('meetingResult.reasonLoading'),
+                      style: const TextStyle(color: _muted, fontSize: 12),
                     ),
                   ],
                 );
@@ -496,8 +510,8 @@ class _MeetingResultScreenState extends State<MeetingResultScreen> {
                   children: [
                     Text(
                       error is ApiException && error.code == 'NETWORK'
-                          ? '서버에 연결할 수 없습니다.'
-                          : '지금은 AI 설명을 만들 수 없습니다. 잠시 후 다시 시도해 주세요.',
+                          ? _t('common.serverDownShort')
+                          : _t('common.aiUnavailable'),
                       style: const TextStyle(
                         color: _muted,
                         fontSize: 12,
@@ -507,7 +521,7 @@ class _MeetingResultScreenState extends State<MeetingResultScreen> {
                     TextButton.icon(
                       onPressed: _retryExplanation,
                       icon: const Icon(Icons.refresh, size: 16),
-                      label: const Text('다시 시도'),
+                      label: Text(_t('common.retry')),
                       style: TextButton.styleFrom(
                         foregroundColor: _navy,
                         padding: EdgeInsets.zero,
@@ -568,9 +582,9 @@ class _MeetingResultScreenState extends State<MeetingResultScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const Text(
-          '주변 인프라',
-          style: TextStyle(
+        Text(
+          _t('meetingResult.facilities'),
+          style: const TextStyle(
             color: _textColor,
             fontSize: 18,
             fontWeight: FontWeight.w900,
@@ -585,17 +599,17 @@ class _MeetingResultScreenState extends State<MeetingResultScreen> {
               future: _facilitiesFor(stationId, language.code),
               builder: (context, snapshot) {
                 if (snapshot.connectionState != ConnectionState.done) {
-                  return const Row(
+                  return Row(
                     children: [
-                      SizedBox(
+                      const SizedBox(
                         width: 14,
                         height: 14,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       ),
-                      SizedBox(width: 10),
+                      const SizedBox(width: 10),
                       Text(
-                        '주변 시설을 불러오는 중입니다…',
-                        style: TextStyle(color: _muted, fontSize: 12),
+                        _t('meetingResult.facilitiesLoading'),
+                        style: const TextStyle(color: _muted, fontSize: 12),
                       ),
                     ],
                   );
@@ -607,8 +621,8 @@ class _MeetingResultScreenState extends State<MeetingResultScreen> {
                     children: [
                       Text(
                         error is ApiException && error.code == 'NETWORK'
-                            ? '서버에 연결할 수 없습니다.'
-                            : '주변 시설을 불러오지 못했습니다.',
+                            ? _t('common.serverDownShort')
+                            : _t('meetingResult.facilitiesError'),
                         style: const TextStyle(
                           color: _muted,
                           fontSize: 12,
@@ -619,7 +633,7 @@ class _MeetingResultScreenState extends State<MeetingResultScreen> {
                         key: const Key('facilities-retry'),
                         onPressed: _retryFacilities,
                         icon: const Icon(Icons.refresh, size: 16),
-                        label: const Text('다시 시도'),
+                        label: Text(_t('common.retry')),
                         style: TextButton.styleFrom(
                           foregroundColor: _navy,
                           padding: EdgeInsets.zero,
@@ -630,9 +644,13 @@ class _MeetingResultScreenState extends State<MeetingResultScreen> {
                 }
                 final items = snapshot.data!;
                 if (items.isEmpty) {
-                  return const Text(
-                    '주변 시설 정보가 없습니다.',
-                    style: TextStyle(color: _muted, fontSize: 12, height: 1.6),
+                  return Text(
+                    _t('meetingResult.facilitiesEmpty'),
+                    style: const TextStyle(
+                      color: _muted,
+                      fontSize: 12,
+                      height: 1.6,
+                    ),
                   );
                 }
                 return Column(
@@ -693,7 +711,7 @@ class _MeetingResultScreenState extends State<MeetingResultScreen> {
         Expanded(
           child: OutlinedButton.icon(
             onPressed: () {
-              _showMessage('공유하기 기능은 추후 연결할 예정입니다.');
+              _showMessage(_t('meetingResult.shareLater'));
             },
             style: OutlinedButton.styleFrom(
               foregroundColor: _textColor,
@@ -705,9 +723,9 @@ class _MeetingResultScreenState extends State<MeetingResultScreen> {
               ),
             ),
             icon: const Icon(Icons.share_outlined, size: 18),
-            label: const Text(
-              '공유하기',
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+            label: Text(
+              _t('meetingResult.share'),
+              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
             ),
           ),
         ),
@@ -723,9 +741,9 @@ class _MeetingResultScreenState extends State<MeetingResultScreen> {
                 borderRadius: BorderRadius.circular(12),
               ),
             ),
-            child: const Text(
-              '길찾기',
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+            child: Text(
+              _t('meetingResult.route'),
+              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
             ),
           ),
         ),
@@ -743,13 +761,13 @@ class _MeetingResultScreenState extends State<MeetingResultScreen> {
       child: Row(
         children: [
           _buildNavigationItem(
-            label: '홈',
+            label: _t('nav.home'),
             icon: Icons.home_outlined,
             selected: true,
             onPressed: _goHome,
           ),
           _buildNavigationItem(
-            label: '즐겨찾기',
+            label: _t('nav.favorites'),
             icon: Icons.star_border_rounded,
             selected: false,
             onPressed: () {
@@ -761,7 +779,7 @@ class _MeetingResultScreenState extends State<MeetingResultScreen> {
             },
           ),
           _buildNavigationItem(
-            label: '노선도',
+            label: _t('nav.map'),
             icon: Icons.map_outlined,
             selected: false,
             onPressed: () {
