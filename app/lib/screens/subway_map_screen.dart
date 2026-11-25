@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../data/subway_map_data.dart';
+import '../l10n/strings.dart';
 import 'favorites_screen.dart';
 
 const _navy = Color(0xFF152952);
@@ -19,6 +20,9 @@ class SubwayMapScreen extends StatefulWidget {
 }
 
 class _SubwayMapScreenState extends State<SubwayMapScreen> {
+  /// 화면 글자 (앱 언어가 ko면 한국어, 아니면 영어)
+  Tr get _t => Tr.of(context);
+
   final _searchController = TextEditingController();
   final _transformationController = TransformationController();
 
@@ -73,7 +77,7 @@ class _SubwayMapScreenState extends State<SubwayMapScreen> {
     final query = _searchController.text.trim().toLowerCase();
 
     if (query.isEmpty) {
-      _showMessage('역 번호를 입력해 주세요. 예: 101');
+      _showMessage(_t('map.enterNumber'));
       return;
     }
 
@@ -83,7 +87,7 @@ class _SubwayMapScreenState extends State<SubwayMapScreen> {
     }).toList();
 
     if (matches.isEmpty) {
-      _showMessage('일치하는 역이 없어요. 현재는 임시 역 번호로 검색해 주세요.');
+      _showMessage(_t('map.noMatch'));
       return;
     }
 
@@ -161,7 +165,7 @@ class _SubwayMapScreenState extends State<SubwayMapScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  station.name ?? '역 ${station.id}',
+                  station.name ?? _t('map.station', {'id': station.id}),
                   style: const TextStyle(
                     color: _textColor,
                     fontSize: 23,
@@ -170,8 +174,12 @@ class _SubwayMapScreenState extends State<SubwayMapScreen> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  '임시 번호 ${station.id} · '
-                  '${station.isTransfer ? '환승역' : '일반역'}',
+                  _t('map.tempNumber', {
+                    'id': station.id,
+                    'kind': station.isTransfer
+                        ? _t('map.transfer')
+                        : _t('map.regular'),
+                  }),
                   style: const TextStyle(color: _muted, fontSize: 13),
                 ),
                 const SizedBox(height: 16),
@@ -185,17 +193,20 @@ class _SubwayMapScreenState extends State<SubwayMapScreen> {
                           backgroundColor: SubwayMapData.colorForLine(number),
                           radius: 5,
                         ),
-                        label: Text('$number호선'),
+                        label: Text(_t('common.line', {'n': number})),
                         backgroundColor: _lightBackground,
                         side: BorderSide.none,
                       ),
                   ],
                 ),
                 const SizedBox(height: 12),
-                const Text(
-                  '현재는 임시 노선 데이터입니다.\n'
-                  '역 이름과 실제 연결 정보는 추후 반영합니다.',
-                  style: TextStyle(color: _muted, fontSize: 12, height: 1.6),
+                Text(
+                  _t('map.tempNote'),
+                  style: const TextStyle(
+                    color: _muted,
+                    fontSize: 12,
+                    height: 1.6,
+                  ),
                 ),
                 const SizedBox(height: 20),
                 FilledButton(
@@ -206,7 +217,7 @@ class _SubwayMapScreenState extends State<SubwayMapScreen> {
                     backgroundColor: _navy,
                     minimumSize: const Size(double.infinity, 50),
                   ),
-                  child: const Text('닫기'),
+                  child: Text(_t('common.close')),
                 ),
               ],
             ),
@@ -226,11 +237,11 @@ class _SubwayMapScreenState extends State<SubwayMapScreen> {
             constraints: const BoxConstraints(maxWidth: 480),
             child: Column(
               children: [
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 20),
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 20),
                   child: Text(
-                    '노선도',
-                    style: TextStyle(
+                    _t('map.title'),
+                    style: const TextStyle(
                       color: _textColor,
                       fontSize: 17,
                       fontWeight: FontWeight.w800,
@@ -243,13 +254,13 @@ class _SubwayMapScreenState extends State<SubwayMapScreen> {
                 ),
                 const SizedBox(height: 10),
                 _buildLineFilters(),
-                const Padding(
-                  padding: EdgeInsets.fromLTRB(20, 8, 20, 4),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 4),
                   child: Align(
                     alignment: Alignment.centerLeft,
                     child: Text(
-                      '임시 노선도 · 역 번호로 검색할 수 있어요',
-                      style: TextStyle(color: _muted, fontSize: 10),
+                      _t('map.subtitle'),
+                      style: const TextStyle(color: _muted, fontSize: 10),
                     ),
                   ),
                 ),
@@ -273,11 +284,11 @@ class _SubwayMapScreenState extends State<SubwayMapScreen> {
       cursorColor: _navy,
       style: const TextStyle(color: _textColor, fontSize: 14),
       decoration: InputDecoration(
-        hintText: '역 이름 또는 번호 검색',
+        hintText: _t('map.searchHint'),
         hintStyle: const TextStyle(color: _muted, fontSize: 12),
         prefixIcon: IconButton(
           onPressed: _searchStation,
-          tooltip: '역 검색',
+          tooltip: _t('map.search'),
           icon: const Icon(Icons.search, color: _navy, size: 22),
         ),
         suffixIcon: _searchController.text.isEmpty
@@ -289,7 +300,7 @@ class _SubwayMapScreenState extends State<SubwayMapScreen> {
                     _selectedStationId = null;
                   });
                 },
-                tooltip: '검색어 지우기',
+                tooltip: _t('map.clear'),
                 icon: const Icon(Icons.close, color: _muted, size: 18),
               ),
         contentPadding: const EdgeInsets.symmetric(vertical: 12),
@@ -339,7 +350,7 @@ class _SubwayMapScreenState extends State<SubwayMapScreen> {
                 backgroundColor: SubwayMapData.colorForLine(number),
               ),
         label: Text(
-          number == null ? '전체' : '$number호선',
+          number == null ? _t('map.all') : _t('common.line', {'n': number}),
           style: TextStyle(
             color: selected ? Colors.white : _textColor,
             fontSize: 11,
@@ -393,17 +404,17 @@ class _SubwayMapScreenState extends State<SubwayMapScreen> {
                   children: [
                     IconButton(
                       onPressed: () => _zoom(1.3),
-                      tooltip: '확대',
+                      tooltip: _t('map.zoomIn'),
                       icon: const Icon(Icons.add, color: _navy),
                     ),
                     IconButton(
                       onPressed: () => _zoom(1 / 1.3),
-                      tooltip: '축소',
+                      tooltip: _t('map.zoomOut'),
                       icon: const Icon(Icons.remove, color: _navy),
                     ),
                     IconButton(
                       onPressed: _resetView,
-                      tooltip: '원래 크기',
+                      tooltip: _t('map.reset'),
                       icon: const Icon(
                         Icons.center_focus_strong,
                         color: _navy,
@@ -421,17 +432,18 @@ class _SubwayMapScreenState extends State<SubwayMapScreen> {
   }
 
   Widget _buildLegend() {
-    return const Padding(
-      padding: EdgeInsets.fromLTRB(24, 8, 24, 14),
+    const legendStyle = TextStyle(color: _muted, fontSize: 10);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 8, 24, 14),
       child: Row(
         children: [
-          Icon(Icons.radio_button_checked, size: 14, color: _navy),
-          SizedBox(width: 5),
-          Text('환승역', style: TextStyle(color: _muted, fontSize: 10)),
-          SizedBox(width: 16),
-          Icon(Icons.circle_outlined, size: 10, color: _navy),
-          SizedBox(width: 5),
-          Text('일반역', style: TextStyle(color: _muted, fontSize: 10)),
+          const Icon(Icons.radio_button_checked, size: 14, color: _navy),
+          const SizedBox(width: 5),
+          Text(_t('map.transfer'), style: legendStyle),
+          const SizedBox(width: 16),
+          const Icon(Icons.circle_outlined, size: 10, color: _navy),
+          const SizedBox(width: 5),
+          Text(_t('map.regular'), style: legendStyle),
         ],
       ),
     );
@@ -446,7 +458,7 @@ class _SubwayMapScreenState extends State<SubwayMapScreen> {
       child: Row(
         children: [
           _buildNavigationItem(
-            label: '홈',
+            label: _t('nav.home'),
             icon: Icons.home_outlined,
             selected: false,
             onPressed: () {
@@ -454,7 +466,7 @@ class _SubwayMapScreenState extends State<SubwayMapScreen> {
             },
           ),
           _buildNavigationItem(
-            label: '즐겨찾기',
+            label: _t('nav.favorites'),
             icon: Icons.star_border_rounded,
             selected: false,
             onPressed: () {
@@ -466,7 +478,7 @@ class _SubwayMapScreenState extends State<SubwayMapScreen> {
             },
           ),
           _buildNavigationItem(
-            label: '노선도',
+            label: _t('nav.map'),
             icon: Icons.map_outlined,
             selected: true,
             onPressed: () {},

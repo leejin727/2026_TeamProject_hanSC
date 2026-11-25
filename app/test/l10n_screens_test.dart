@@ -14,6 +14,7 @@ import 'package:subway_app/screens/home_screen.dart';
 import 'package:subway_app/screens/meeting_input_screen.dart';
 import 'package:subway_app/screens/meeting_result_screen.dart';
 import 'package:subway_app/screens/route_result_screen.dart';
+import 'package:subway_app/screens/subway_map_screen.dart';
 import 'package:subway_app/widgets/language_selector.dart';
 
 Future<void> show(WidgetTester tester, Widget screen) async {
@@ -295,6 +296,36 @@ void main() {
         expect(find.text(text), findsWidgets, reason: text);
       }
       expect(find.textContaining(RegExp('[가-힣]')), findsNothing);
+    });
+  });
+
+  group('노선도', () {
+    testWidgets('영어 모드에서 제목·검색·범례가 영어', (tester) async {
+      LanguageSettings.selected.value = AppLanguage.english;
+      await show(tester, const SubwayMapScreen());
+      for (final text in [
+        'Subway map',
+        'Temporary map · Search by station number',
+        'All',
+        'Line 1',
+        'Transfer station',
+        'Station',
+        'Home',
+        'Favorites',
+        'Map',
+      ]) {
+        expect(find.text(text), findsWidgets, reason: text);
+      }
+      expect(find.byTooltip('Zoom in'), findsOneWidget);
+      expect(find.text('노선도'), findsNothing);
+    });
+
+    testWidgets('빈 칸으로 찾으면 영어 안내가 뜬다', (tester) async {
+      LanguageSettings.selected.value = AppLanguage.english;
+      await show(tester, const SubwayMapScreen());
+      await tester.tap(find.byTooltip('Search stations'));
+      await tester.pump();
+      expect(find.text('Enter a station number. Example: 101'), findsOneWidget);
     });
   });
 
