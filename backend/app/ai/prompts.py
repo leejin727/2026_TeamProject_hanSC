@@ -121,7 +121,9 @@ def meeting_prompt(result: dict, lang: str) -> tuple[str, str]:
 # ----- 주변 시설 (AI 예시) -----
 # 위의 경로·모임역 설명과 달리, 여기서는 데이터에 없는 내용을 AI가 "만든다".
 # 노선도가 가상이라 실제 시설 데이터가 없어서, 역 이름만 빌려 예시를 만들기로 했다 (ASSUMPTIONS.md 팀 결정 2026-11-18).
-# 앱은 "AI가 만든 예시이며 실제와 다를 수 있음"을 함께 보여 준다.
+# 주변 시설은 AI가 만든 예시다. 앱 화면에는 이 사실을 표시하지 않고, API의 ai_generated 값으로만 구분한다 (2026-11-25 이진 결정).
+# 한국어 목록을 먼저 만들고(facilities_prompt), 다른 언어는 그 목록을 번역한다(facilities_translate_prompt).
+# 그래서 언어가 달라도 같은 가게다 (2026-11-25).
 
 FACILITY_CATEGORIES = ("cafe", "restaurant", "convenience_store", "pharmacy", "restroom")
 
@@ -136,16 +138,17 @@ _FACILITIES_SYSTEM = """너는 외국인 여행자를 위한 지하철 앱에서
 - 광고 문구, 전화번호, 가격, 영업시간, 위험하거나 불쾌한 내용은 쓰지 않는다.
 """
 
-# 한국어가 아닌 언어는 프롬프트도 영어로만 준다 (한글이 한 글자도 없게).
-# 한국어 프롬프트를 주면 답에 한글이 섞이는 일이 잦았다 (2026-11-18, 예: ja "スターバックス 千호역점").
-_FACILITIES_SYSTEM_OTHER = """You create example facilities near a subway station for a subway app for foreign travelers.
-The app's subway map is fictional; only the station names are borrowed from real Seoul subway stations.
-Imagine the area around the real Seoul station with the same name and make plausible example facilities. They do not have to be accurate.
+# 번역 프롬프트는 영어로 준다. 언어마다 따로 만들던 때(2026-11-18) 한국어 프롬프트를 주면
+# 답에 한글이 섞이는 일이 잦았다 (예: ja "スターバックス 千호역점"). 번역 답도 한글이 섞이면 다시 부른다.
+_FACILITIES_TRANSLATE_SYSTEM = """You translate example facilities near a subway station for a subway app for foreign travelers.
+You get a JSON list written in Korean. Each item has category, name and detail.
 Rules:
-- Write name and detail only in {language}. Never use Korean letters (Hangul) anywhere, including shop names and station names.
-{place_names}- Exactly one facility per category, five in total: cafe, restaurant, convenience_store, pharmacy, restroom.
-- name is the facility name (up to 20 characters). detail is a one-line location like "Exit 2 · 3 min walk", written in {language}.
-- The restroom may be inside the station (like "Inside station · Concourse").
+- Answer with JSON only: a list with exactly the same number of items, in the same order, with the same category values.
+- Translate only name and detail into {language}. Never use Korean letters (Hangul) in the answer.
+- Keep the same shop. For a brand, use the name that brand uses in {language} (for example 스타벅스 is Starbucks in English, スターバックス in Japanese and 星巴克 in Chinese).
+- If a Korean name has no usual form in {language}, translate its meaning or write it in Latin letters. Never leave any Korean letters.
+- Base station names and place names on the English station name you are given.
+{place_names}- detail is a one-line location like "Exit 2 · 3 min walk", written in {language}.
 - No advertising, phone numbers, prices, opening hours, or harmful or offensive content.
 """
 
@@ -158,15 +161,17 @@ _PLACE_NAMES = {
 }
 
 
-def facilities_prompt(name_ko: str, name_en: str, lang: str) -> tuple[str, str]:
-    """역 이름(한국어·영어)으로 주변 시설 예시를 만드는 프롬프트."""
-    if lang == "ko":
-        system = _FACILITIES_SYSTEM.format(language=LANGUAGES[lang])
-        ask = f"다음 역 주변의 시설 예시 5개를 만들어 줘. name과 detail은 반드시 {LANGUAGES[lang]}로 써.\n역(JSON):"
-        data = {"station_name_ko": name_ko}
-    else:
-        system = _FACILITIES_SYSTEM_OTHER.format(language=LANGUAGES[lang], place_names=_PLACE_NAMES.get(lang, ""))
-        ask = f"Make 5 example facilities near this station. Write name and detail only in {LANGUAGES[lang]}.\nStation (JSON):"
-        # 한국어 이름을 같이 주면 답이 한국어로 나오는 일이 잦아서 영어 이름만 준다
-        data = {"station_name_en": name_en}
-    return system, f"{ask}\n{json.dumps(data, ensure_ascii=False)}"
+def facilities_prompt(name_ko: str) -> tuple[str, str]:
+    """한국어 역 이름으로 한국어 주변 시설 예시 5개를 만드는 프롬프트. 다른 언어는 이 목록을 번역한다."""
+    system = _FACILITIES_SYSTEM.format(language=LANGUAGES["ko"])
+    ask = f"다음 역 주변의 시설 예시 5개를 만들어 줘. name과 detail은 반드시 {LANGUAGES['ko']}로 써.\n역(JSON):"
+    return system, f"{ask}\n{json.dumps({'station_name_ko': name_ko}, ensure_ascii=False)}"
+
+
+def facilities_translate_prompt(korean: list[dict], name_en: str, lang: str) -> tuple[str, str]:
+    """한국어 시설 목록을 [lang]으로 옮기는 프롬프트. 역 이름·지명은 영어 역 이름을 기준으로 옮긴다."""
+    system = _FACILITIES_TRANSLATE_SYSTEM.format(language=LANGUAGES[lang], place_names=_PLACE_NAMES.get(lang, ""))
+    station = json.dumps({"station_name_en": name_en}, ensure_ascii=False)
+    items = json.dumps(korean, ensure_ascii=False)
+    return system, (f"Translate these facilities into {LANGUAGES[lang]}.\n"
+                    f"Station (JSON): {station}\nFacilities in Korean (JSON):\n{items}")
