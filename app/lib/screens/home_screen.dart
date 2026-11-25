@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../data/favorite_routes.dart';
 import '../data/recent_routes.dart';
+import '../l10n/strings.dart';
 import 'chat_screen.dart';
 import 'favorites_screen.dart';
 import 'meeting_input_screen.dart';
@@ -23,6 +24,9 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  /// 화면 글자 (앱 언어가 ko면 한국어, 아니면 영어)
+  Tr get _t => Tr.of(context);
+
   final _departureController = TextEditingController();
   final _arrivalController = TextEditingController();
 
@@ -52,12 +56,12 @@ class _HomeScreenState extends State<HomeScreen> {
     final arrival = _arrivalController.text.trim();
 
     if (departure.isEmpty || arrival.isEmpty) {
-      _showMessage('출발역과 도착역을 모두 입력해 주세요.');
+      _showMessage(_t('home.bothNeeded'));
       return;
     }
 
     if (departure == arrival) {
-      _showMessage('출발역과 도착역을 다르게 입력해 주세요.');
+      _showMessage(_t('home.different'));
       return;
     }
 
@@ -123,18 +127,18 @@ class _HomeScreenState extends State<HomeScreen> {
                       children: [
                         _buildHeader(),
                         const SizedBox(height: 28),
-                        const Text(
-                          '어디로 가시나요?',
-                          style: TextStyle(
+                        Text(
+                          _t('common.whereTo'),
+                          style: const TextStyle(
                             color: _textColor,
                             fontSize: 25,
                             fontWeight: FontWeight.w900,
                           ),
                         ),
                         const SizedBox(height: 8),
-                        const Text(
-                          '출발역을 입력하면 가장 빠른 길을 찾아드려요',
-                          style: TextStyle(
+                        Text(
+                          _t('home.subtitle'),
+                          style: const TextStyle(
                             color: _muted,
                             fontSize: 12,
                             height: 1.5,
@@ -192,7 +196,7 @@ class _HomeScreenState extends State<HomeScreen> {
         // 챗봇 화면으로 들어가는 버튼. 언어 선택 버튼과 같은 모양(흰 바탕, 테두리, 높이 40)
         IconButton(
           onPressed: _openChatScreen,
-          tooltip: '챗봇',
+          tooltip: _t('home.chatbot'),
           style: IconButton.styleFrom(
             backgroundColor: Colors.white,
             foregroundColor: _navy,
@@ -247,11 +251,15 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Row(
         children: [
           Expanded(
-            child: _buildTab(label: '경로 검색', selected: true, onPressed: () {}),
+            child: _buildTab(
+              label: _t('tab.route'),
+              selected: true,
+              onPressed: () {},
+            ),
           ),
           Expanded(
             child: _buildTab(
-              label: '모임역 추천',
+              label: _t('tab.meeting'),
               selected: false,
               onPressed: _openMeetingScreen,
             ),
@@ -293,15 +301,15 @@ class _HomeScreenState extends State<HomeScreen> {
         Column(
           children: [
             _buildStationField(
-              label: '출발',
-              hint: '출발역 입력',
+              label: _t('home.from'),
+              hint: _t('common.departureHint'),
               controller: _departureController,
               inputAction: TextInputAction.next,
             ),
             const SizedBox(height: 12),
             _buildStationField(
-              label: '도착',
-              hint: '도착역 입력',
+              label: _t('home.to'),
+              hint: _t('home.arrivalHint'),
               controller: _arrivalController,
               inputAction: TextInputAction.search,
               onSubmitted: (_) => _searchRoute(),
@@ -312,7 +320,7 @@ class _HomeScreenState extends State<HomeScreen> {
           padding: const EdgeInsets.only(right: 8),
           child: IconButton(
             onPressed: _swapStations,
-            tooltip: '출발역과 도착역 교환',
+            tooltip: _t('home.swap'),
             style: IconButton.styleFrom(
               backgroundColor: _lightBackground,
               foregroundColor: _navy,
@@ -395,9 +403,9 @@ class _HomeScreenState extends State<HomeScreen> {
         minimumSize: const Size(double.infinity, 62),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
-      child: const Text(
-        '경로 검색',
-        style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+      child: Text(
+        _t('home.search'),
+        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
       ),
     );
   }
@@ -413,9 +421,9 @@ class _HomeScreenState extends State<HomeScreen> {
           children: [
             Row(
               children: [
-                const Text(
-                  '최근 검색',
-                  style: TextStyle(
+                Text(
+                  _t('home.recent'),
+                  style: const TextStyle(
                     color: _textColor,
                     fontSize: 16,
                     fontWeight: FontWeight.w700,
@@ -428,7 +436,10 @@ class _HomeScreenState extends State<HomeScreen> {
                     foregroundColor: _muted,
                     padding: EdgeInsets.zero,
                   ),
-                  child: const Text('전체보기', style: TextStyle(fontSize: 11)),
+                  child: Text(
+                    _t('home.seeAll'),
+                    style: const TextStyle(fontSize: 11),
+                  ),
                 ),
               ],
             ),
@@ -488,7 +499,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 onPressed: () {
                   FavoriteRoutes.toggle(route.departure, route.arrival);
                 },
-                tooltip: isFavorite ? '즐겨찾기 해제' : '즐겨찾기 선택',
+                tooltip: isFavorite
+                    ? _t('common.favoriteRemove')
+                    : _t('common.favoriteAdd'),
                 icon: Icon(
                   isFavorite ? Icons.star_rounded : Icons.star_border_rounded,
                   color: _navy,
@@ -501,7 +514,10 @@ class _HomeScreenState extends State<HomeScreen> {
             onPressed: () {
               RecentRoutes.remove(route.departure, route.arrival);
             },
-            tooltip: '${route.departure} → ${route.arrival} 검색 기록 삭제',
+            tooltip: _t('home.deleteRecent', {
+              'from': route.departure,
+              'to': route.arrival,
+            }),
             icon: const Icon(Icons.close, color: _muted, size: 19),
           ),
           const SizedBox(width: 4),
@@ -518,24 +534,24 @@ class _HomeScreenState extends State<HomeScreen> {
         color: _lightBackground,
         borderRadius: BorderRadius.circular(13),
       ),
-      child: const Column(
+      child: Column(
         children: [
-          Icon(Icons.history, color: _muted, size: 28),
-          SizedBox(height: 10),
+          const Icon(Icons.history, color: _muted, size: 28),
+          const SizedBox(height: 10),
           Text(
-            '최근 검색 기록이 없어요',
+            _t('home.noRecent'),
             textAlign: TextAlign.center,
-            style: TextStyle(
+            style: const TextStyle(
               color: _textColor,
               fontSize: 14,
               fontWeight: FontWeight.w700,
             ),
           ),
-          SizedBox(height: 6),
+          const SizedBox(height: 6),
           Text(
-            '출발역과 도착역을 입력해 경로를 검색해 보세요.',
+            _t('home.noRecentHint'),
             textAlign: TextAlign.center,
-            style: TextStyle(color: _muted, fontSize: 12, height: 1.5),
+            style: const TextStyle(color: _muted, fontSize: 12, height: 1.5),
           ),
         ],
       ),
@@ -564,10 +580,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 children: [
                   Row(
                     children: [
-                      const Expanded(
+                      Expanded(
                         child: Text(
-                          '최근 검색 전체보기',
-                          style: TextStyle(
+                          _t('home.allRecent'),
+                          style: const TextStyle(
                             color: _textColor,
                             fontSize: 20,
                             fontWeight: FontWeight.w900,
@@ -578,15 +594,15 @@ class _HomeScreenState extends State<HomeScreen> {
                         onPressed: () {
                           Navigator.of(sheetContext).pop();
                         },
-                        tooltip: '닫기',
+                        tooltip: _t('common.close'),
                         icon: const Icon(Icons.close, color: _navy),
                       ),
                     ],
                   ),
                   const SizedBox(height: 4),
-                  const Text(
-                    '최신순으로 최대 10개까지 표시돼요.',
-                    style: TextStyle(color: _muted, fontSize: 12),
+                  Text(
+                    _t('home.recentLimit'),
+                    style: const TextStyle(color: _muted, fontSize: 12),
                   ),
                   const SizedBox(height: 16),
                   Expanded(
@@ -633,9 +649,9 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                         ),
                         icon: const Icon(Icons.delete_outline, size: 20),
-                        label: const Text(
-                          '최근 검색 전체 삭제',
-                          style: TextStyle(
+                        label: Text(
+                          _t('home.clearRecent'),
+                          style: const TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w700,
                           ),
@@ -644,10 +660,10 @@ class _HomeScreenState extends State<HomeScreen> {
                     },
                   ),
                   const SizedBox(height: 8),
-                  const Text(
-                    '검색 기록만 삭제되며 즐겨찾기는 유지돼요.',
+                  Text(
+                    _t('home.clearRecentNote'),
                     textAlign: TextAlign.center,
-                    style: TextStyle(color: _muted, fontSize: 11),
+                    style: const TextStyle(color: _muted, fontSize: 11),
                   ),
                 ],
               ),
@@ -675,19 +691,19 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Row(
         children: [
           _buildNavigationItem(
-            label: '홈',
+            label: _t('nav.home'),
             icon: Icons.home_outlined,
             selected: true,
             onPressed: () {},
           ),
           _buildNavigationItem(
-            label: '즐겨찾기',
+            label: _t('nav.favorites'),
             icon: Icons.star_border_rounded,
             selected: false,
             onPressed: _openFavoritesScreen,
           ),
           _buildNavigationItem(
-            label: '노선도',
+            label: _t('nav.map'),
             icon: Icons.map_outlined,
             selected: false,
             onPressed: () {

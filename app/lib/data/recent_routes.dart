@@ -14,15 +14,15 @@ class RecentRoutes {
   // 위쪽일수록 최근 검색한 것으로 가정합니다.
   static final ValueNotifier<List<RecentRoute>> items =
       ValueNotifier<List<RecentRoute>>(const [
-        RecentRoute(departure: '홍대입구역', arrival: '잠실역'),
+        RecentRoute(departure: '합정역', arrival: '잠실역'),
         RecentRoute(departure: '서울역', arrival: '을지로3가역'),
         RecentRoute(departure: '강남역', arrival: '성수역'),
         RecentRoute(departure: '사당역', arrival: '서울역'),
         RecentRoute(departure: '건대입구역', arrival: '왕십리역'),
         RecentRoute(departure: '신도림역', arrival: '여의도역'),
-        RecentRoute(departure: '수서역', arrival: '고속터미널역'),
+        RecentRoute(departure: '사당역', arrival: '고속터미널역'),
         RecentRoute(departure: '노원역', arrival: '동대문역'),
-        RecentRoute(departure: '종로3가역', arrival: '안국역'),
+        RecentRoute(departure: '종로3가역', arrival: '을지로3가역'),
         RecentRoute(departure: '합정역', arrival: '이대역'),
       ]);
 

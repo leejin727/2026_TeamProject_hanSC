@@ -8,6 +8,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:subway_app/api/api_client.dart';
 import 'package:subway_app/l10n/strings.dart';
+import 'package:subway_app/screens/home_screen.dart';
 import 'package:subway_app/screens/meeting_input_screen.dart';
 import 'package:subway_app/screens/meeting_result_screen.dart';
 import 'package:subway_app/screens/route_result_screen.dart';
@@ -237,6 +238,43 @@ void main() {
       ]) {
         expect(find.text(text), findsWidgets, reason: text);
       }
+    });
+  });
+
+  group('홈', () {
+    testWidgets('영어 모드에서 주요 버튼이 영어', (tester) async {
+      LanguageSettings.selected.value = AppLanguage.english;
+      await show(tester, const HomeScreen());
+      for (final text in [
+        'Where are you going?',
+        'Search route',
+        'Recent searches',
+        'See all',
+        'From',
+        'To',
+        'Route',
+        'Meeting spot',
+        'Home',
+        'Favorites',
+        'Map',
+      ]) {
+        expect(find.text(text), findsWidgets, reason: text);
+      }
+      expect(find.byTooltip('Chatbot'), findsOneWidget);
+      expect(find.text('경로 검색'), findsNothing);
+    });
+
+    testWidgets('빈 칸으로 검색하면 영어 안내가 뜬다', (tester) async {
+      LanguageSettings.selected.value = AppLanguage.english;
+      await show(tester, const HomeScreen());
+      final button = find.text('Search route');
+      await tester.ensureVisible(button);
+      await tester.tap(button);
+      await tester.pump();
+      expect(
+        find.text('Please enter both departure and arrival stations.'),
+        findsOneWidget,
+      );
     });
   });
 
