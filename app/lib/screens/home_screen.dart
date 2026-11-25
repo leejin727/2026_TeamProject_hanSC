@@ -8,6 +8,7 @@ import 'meeting_input_screen.dart';
 import 'route_result_screen.dart';
 import 'subway_map_screen.dart';
 import '../widgets/language_selector.dart';
+import '../localization/app_strings.dart';
 
 const _navy = Color(0xFF152952);
 const _textColor = Color(0xFF293F64);
@@ -25,11 +26,29 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   final _departureController = TextEditingController();
   final _arrivalController = TextEditingController();
+  @override
+  void initState() {
+    super.initState();
+
+    // 언어가 바뀌면 홈 화면을 다시 그립니다.
+    LanguageSettings.selected.addListener(_onLanguageChanged);
+  }
+
+  void _onLanguageChanged() {
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {});
+  }
 
   @override
   void dispose() {
+    LanguageSettings.selected.removeListener(_onLanguageChanged);
+
     _departureController.dispose();
     _arrivalController.dispose();
+
     super.dispose();
   }
 
@@ -52,12 +71,12 @@ class _HomeScreenState extends State<HomeScreen> {
     final arrival = _arrivalController.text.trim();
 
     if (departure.isEmpty || arrival.isEmpty) {
-      _showMessage('출발역과 도착역을 모두 입력해 주세요.');
+      _showMessage(AppStrings.text('출발역과 도착역을 모두 입력해 주세요.'));
       return;
     }
 
     if (departure == arrival) {
-      _showMessage('출발역과 도착역을 다르게 입력해 주세요.');
+      _showMessage(AppStrings.text('출발역과 도착역을 다르게 입력해 주세요.'));
       return;
     }
 
@@ -123,18 +142,19 @@ class _HomeScreenState extends State<HomeScreen> {
                       children: [
                         _buildHeader(),
                         const SizedBox(height: 28),
-                        const Text(
-                          '어디로 가시나요?',
-                          style: TextStyle(
+                        Text(
+                          AppStrings.text('어디로 가시나요?'),
+                          style: const TextStyle(
                             color: _textColor,
                             fontSize: 25,
                             fontWeight: FontWeight.w900,
+                            height: 1.3,
                           ),
                         ),
                         const SizedBox(height: 8),
-                        const Text(
-                          '출발역을 입력하면 가장 빠른 길을 찾아드려요',
-                          style: TextStyle(
+                        Text(
+                          AppStrings.text('출발역을 입력하면 가장 빠른 길을 찾아드려요'),
+                          style: const TextStyle(
                             color: _muted,
                             fontSize: 12,
                             height: 1.5,
@@ -192,7 +212,7 @@ class _HomeScreenState extends State<HomeScreen> {
         // 챗봇 화면으로 들어가는 버튼. 언어 선택 버튼과 같은 모양(흰 바탕, 테두리, 높이 40)
         IconButton(
           onPressed: _openChatScreen,
-          tooltip: '챗봇',
+          tooltip: AppStrings.text('챗봇'),
           style: IconButton.styleFrom(
             backgroundColor: Colors.white,
             foregroundColor: _navy,
@@ -247,11 +267,15 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Row(
         children: [
           Expanded(
-            child: _buildTab(label: '경로 검색', selected: true, onPressed: () {}),
+            child: _buildTab(
+              label: AppStrings.text('경로 검색'),
+              selected: true,
+              onPressed: () {},
+            ),
           ),
           Expanded(
             child: _buildTab(
-              label: '모임역 추천',
+              label: AppStrings.text('모임역 추천'),
               selected: false,
               onPressed: _openMeetingScreen,
             ),
@@ -274,13 +298,19 @@ class _HomeScreenState extends State<HomeScreen> {
           backgroundColor: selected ? _navy : Colors.transparent,
           foregroundColor: selected ? Colors.white : _muted,
           minimumSize: const Size(0, 52),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(10),
           ),
         ),
         child: Text(
           label,
-          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w700,
+            height: 1.3,
+          ),
         ),
       ),
     );
@@ -293,15 +323,15 @@ class _HomeScreenState extends State<HomeScreen> {
         Column(
           children: [
             _buildStationField(
-              label: '출발',
-              hint: '출발역 입력',
+              label: AppStrings.text('출발'),
+              hint: AppStrings.text('출발역 입력'),
               controller: _departureController,
               inputAction: TextInputAction.next,
             ),
             const SizedBox(height: 12),
             _buildStationField(
-              label: '도착',
-              hint: '도착역 입력',
+              label: AppStrings.text('도착'),
+              hint: AppStrings.text('도착역 입력'),
               controller: _arrivalController,
               inputAction: TextInputAction.search,
               onSubmitted: (_) => _searchRoute(),
@@ -312,7 +342,7 @@ class _HomeScreenState extends State<HomeScreen> {
           padding: const EdgeInsets.only(right: 8),
           child: IconButton(
             onPressed: _swapStations,
-            tooltip: '출발역과 도착역 교환',
+            tooltip: AppStrings.text('출발역과 도착역 교환'),
             style: IconButton.styleFrom(
               backgroundColor: _lightBackground,
               foregroundColor: _navy,
@@ -393,11 +423,13 @@ class _HomeScreenState extends State<HomeScreen> {
         backgroundColor: _navy,
         foregroundColor: Colors.white,
         minimumSize: const Size(double.infinity, 62),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
-      child: const Text(
-        '경로 검색',
-        style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+      child: Text(
+        AppStrings.text('경로 검색'),
+        textAlign: TextAlign.center,
+        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
       ),
     );
   }
@@ -413,22 +445,27 @@ class _HomeScreenState extends State<HomeScreen> {
           children: [
             Row(
               children: [
-                const Text(
-                  '최근 검색',
-                  style: TextStyle(
-                    color: _textColor,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
+                Expanded(
+                  child: Text(
+                    AppStrings.text('최근 검색'),
+                    style: const TextStyle(
+                      color: _textColor,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
-                const Spacer(),
+                const SizedBox(width: 8),
                 TextButton(
                   onPressed: _showAllRecentRoutes,
                   style: TextButton.styleFrom(
                     foregroundColor: _muted,
-                    padding: EdgeInsets.zero,
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
                   ),
-                  child: const Text('전체보기', style: TextStyle(fontSize: 11)),
+                  child: Text(
+                    AppStrings.text('전체보기'),
+                    style: const TextStyle(fontSize: 11),
+                  ),
                 ),
               ],
             ),
@@ -488,7 +525,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 onPressed: () {
                   FavoriteRoutes.toggle(route.departure, route.arrival);
                 },
-                tooltip: isFavorite ? '즐겨찾기 해제' : '즐겨찾기 선택',
+                tooltip: AppStrings.text(isFavorite ? '즐겨찾기 해제' : '즐겨찾기 선택'),
                 icon: Icon(
                   isFavorite ? Icons.star_rounded : Icons.star_border_rounded,
                   color: _navy,
@@ -501,7 +538,9 @@ class _HomeScreenState extends State<HomeScreen> {
             onPressed: () {
               RecentRoutes.remove(route.departure, route.arrival);
             },
-            tooltip: '${route.departure} → ${route.arrival} 검색 기록 삭제',
+            tooltip:
+                '${AppStrings.text('검색 기록 삭제')}: '
+                '${route.departure} → ${route.arrival}',
             icon: const Icon(Icons.close, color: _muted, size: 19),
           ),
           const SizedBox(width: 4),
@@ -518,24 +557,24 @@ class _HomeScreenState extends State<HomeScreen> {
         color: _lightBackground,
         borderRadius: BorderRadius.circular(13),
       ),
-      child: const Column(
+      child: Column(
         children: [
-          Icon(Icons.history, color: _muted, size: 28),
-          SizedBox(height: 10),
+          const Icon(Icons.history, color: _muted, size: 28),
+          const SizedBox(height: 10),
           Text(
-            '최근 검색 기록이 없어요',
+            AppStrings.text('최근 검색 기록이 없어요'),
             textAlign: TextAlign.center,
-            style: TextStyle(
+            style: const TextStyle(
               color: _textColor,
               fontSize: 14,
               fontWeight: FontWeight.w700,
             ),
           ),
-          SizedBox(height: 6),
+          const SizedBox(height: 6),
           Text(
-            '출발역과 도착역을 입력해 경로를 검색해 보세요.',
+            AppStrings.text('출발역과 도착역을 입력해 경로를 검색해 보세요.'),
             textAlign: TextAlign.center,
-            style: TextStyle(color: _muted, fontSize: 12, height: 1.5),
+            style: const TextStyle(color: _muted, fontSize: 12, height: 1.5),
           ),
         ],
       ),
@@ -554,105 +593,126 @@ class _HomeScreenState extends State<HomeScreen> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (sheetContext) {
-        return SafeArea(
-          child: SizedBox(
-            height: MediaQuery.sizeOf(sheetContext).height * 0.75,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Row(
+        // 패널도 언어 변경을 감지하도록 연결합니다.
+        return ValueListenableBuilder<AppLanguage>(
+          valueListenable: LanguageSettings.selected,
+          builder: (context, language, child) {
+            return SafeArea(
+              child: SizedBox(
+                height: MediaQuery.sizeOf(sheetContext).height * 0.75,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      const Expanded(
-                        child: Text(
-                          '최근 검색 전체보기',
-                          style: TextStyle(
-                            color: _textColor,
-                            fontSize: 20,
-                            fontWeight: FontWeight.w900,
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              AppStrings.text('최근 검색 전체보기'),
+                              style: const TextStyle(
+                                color: _textColor,
+                                fontSize: 20,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
                           ),
+                          IconButton(
+                            onPressed: () {
+                              Navigator.of(sheetContext).pop();
+                            },
+                            tooltip: AppStrings.text('닫기'),
+                            icon: const Icon(Icons.close, color: _navy),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        AppStrings.text('최신순으로 최대 10개까지 표시돼요.'),
+                        style: const TextStyle(
+                          color: _muted,
+                          fontSize: 12,
+                          height: 1.5,
                         ),
                       ),
-                      IconButton(
-                        onPressed: () {
-                          Navigator.of(sheetContext).pop();
+                      const SizedBox(height: 16),
+                      Expanded(
+                        child: ValueListenableBuilder<List<RecentRoute>>(
+                          valueListenable: RecentRoutes.items,
+                          builder: (context, routes, child) {
+                            if (routes.isEmpty) {
+                              return SingleChildScrollView(
+                                child: _buildRecentEmptyState(),
+                              );
+                            }
+
+                            return ListView.builder(
+                              itemCount: routes.length,
+                              itemBuilder: (context, index) {
+                                final route = routes[index];
+
+                                return Padding(
+                                  padding: const EdgeInsets.only(bottom: 12),
+                                  child: _buildRecentRouteCard(
+                                    route: route,
+                                    onTap: () {
+                                      Navigator.of(sheetContext).pop(route);
+                                    },
+                                  ),
+                                );
+                              },
+                            );
+                          },
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      ValueListenableBuilder<List<RecentRoute>>(
+                        valueListenable: RecentRoutes.items,
+                        builder: (context, routes, child) {
+                          return OutlinedButton.icon(
+                            onPressed: routes.isEmpty
+                                ? null
+                                : RecentRoutes.clear,
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: _navy,
+                              side: const BorderSide(color: _border),
+                              minimumSize: const Size(double.infinity, 52),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 12,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            icon: const Icon(Icons.delete_outline, size: 20),
+                            label: Text(
+                              AppStrings.text('최근 검색 전체 삭제'),
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          );
                         },
-                        tooltip: '닫기',
-                        icon: const Icon(Icons.close, color: _navy),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        AppStrings.text('검색 기록만 삭제되며 즐겨찾기는 유지돼요.'),
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: _muted,
+                          fontSize: 11,
+                          height: 1.5,
+                        ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 4),
-                  const Text(
-                    '최신순으로 최대 10개까지 표시돼요.',
-                    style: TextStyle(color: _muted, fontSize: 12),
-                  ),
-                  const SizedBox(height: 16),
-                  Expanded(
-                    child: ValueListenableBuilder<List<RecentRoute>>(
-                      valueListenable: RecentRoutes.items,
-                      builder: (context, routes, child) {
-                        if (routes.isEmpty) {
-                          return SingleChildScrollView(
-                            child: _buildRecentEmptyState(),
-                          );
-                        }
-
-                        return ListView.builder(
-                          itemCount: routes.length,
-                          itemBuilder: (context, index) {
-                            final route = routes[index];
-
-                            return Padding(
-                              padding: const EdgeInsets.only(bottom: 12),
-                              child: _buildRecentRouteCard(
-                                route: route,
-                                onTap: () {
-                                  Navigator.of(sheetContext).pop(route);
-                                },
-                              ),
-                            );
-                          },
-                        );
-                      },
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  ValueListenableBuilder<List<RecentRoute>>(
-                    valueListenable: RecentRoutes.items,
-                    builder: (context, routes, child) {
-                      return OutlinedButton.icon(
-                        onPressed: routes.isEmpty ? null : RecentRoutes.clear,
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: _navy,
-                          side: const BorderSide(color: _border),
-                          minimumSize: const Size(double.infinity, 52),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        icon: const Icon(Icons.delete_outline, size: 20),
-                        label: const Text(
-                          '최근 검색 전체 삭제',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    '검색 기록만 삭제되며 즐겨찾기는 유지돼요.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: _muted, fontSize: 11),
-                  ),
-                ],
+                ),
               ),
-            ),
-          ),
+            );
+          },
         );
       },
     );
@@ -675,19 +735,19 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Row(
         children: [
           _buildNavigationItem(
-            label: '홈',
+            label: AppStrings.text('홈'),
             icon: Icons.home_outlined,
             selected: true,
             onPressed: () {},
           ),
           _buildNavigationItem(
-            label: '즐겨찾기',
+            label: AppStrings.text('즐겨찾기'),
             icon: Icons.star_border_rounded,
             selected: false,
             onPressed: _openFavoritesScreen,
           ),
           _buildNavigationItem(
-            label: '노선도',
+            label: AppStrings.text('노선도'),
             icon: Icons.map_outlined,
             selected: false,
             onPressed: () {
@@ -733,7 +793,11 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: Icon(icon, size: 23),
               ),
               const SizedBox(height: 3),
-              Text(label, style: const TextStyle(fontSize: 10)),
+              Text(
+                label,
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 10, height: 1.3),
+              ),
             ],
           ),
         ),
