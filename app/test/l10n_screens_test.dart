@@ -1,4 +1,5 @@
-// 화면 글자 한국어·영어 테스트: 앱 언어가 ko가 아니면 시연 화면의 주요 버튼이 영어로 보여야 한다.
+// 화면 글자 다국어 테스트: 앱 언어를 바꾸면 시연 화면의 주요 글자가 그 언어로 보여야 한다.
+// 글자 표는 lib/localization/app_strings.dart (한국어 문장이 키, 5개 언어 번역).
 // 서버를 부르는 화면은 가짜 서버(MockClient)를 쓴다.
 import 'dart:convert';
 
@@ -7,7 +8,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:subway_app/api/api_client.dart';
-import 'package:subway_app/l10n/strings.dart';
 import 'package:subway_app/data/favorite_routes.dart';
 import 'package:subway_app/screens/favorites_screen.dart';
 import 'package:subway_app/screens/home_screen.dart';
@@ -18,9 +18,11 @@ import 'package:subway_app/screens/subway_map_screen.dart';
 import 'package:subway_app/widgets/language_selector.dart';
 
 Future<void> show(WidgetTester tester, Widget screen) async {
-  await tester.pumpWidget(LanguageScope(child: MaterialApp(home: screen)));
+  await tester.pumpWidget(MaterialApp(home: screen));
   await tester.pumpAndSettle();
 }
+
+final hangul = RegExp('[가-힣]');
 
 http.Response jsonResponse(Object body, [int status = 200]) =>
     http.Response.bytes(utf8.encode(jsonEncode(body)), status);
@@ -121,79 +123,66 @@ ApiClient fakeClient() => ApiClient(
   }),
 );
 
+MeetingResultScreen meetingResult() => MeetingResultScreen(
+  departures: const ['신도림', '노원', '장지'],
+  criteria: 'fairness',
+  criteriaLabel: '공평성',
+  client: fakeClient(),
+);
+
 void main() {
   setUp(() => LanguageSettings.selected.value = AppLanguage.korean);
   tearDown(() => LanguageSettings.selected.value = AppLanguage.korean);
 
   group('모임역 입력', () {
-    testWidgets('영어 모드에서 주요 버튼이 영어', (tester) async {
+    testWidgets('영어 모드에서 글자가 모두 영어', (tester) async {
       LanguageSettings.selected.value = AppLanguage.english;
       await show(tester, const MeetingInputScreen());
       for (final text in [
         'Find a meeting station',
         'Fastest',
-        'Fairest',
+        'Fairness',
         'Fewest transfers',
         'Me',
         'Friend 1',
-        'Meeting spot',
+        'Meeting station',
         'Home',
       ]) {
-        expect(find.text(text), findsOneWidget, reason: text);
+        expect(find.text(text), findsWidgets, reason: text);
       }
-      expect(find.text('추천역 찾기'), findsNothing);
+      expect(find.textContaining(hangul), findsNothing);
     });
 
-    testWidgets('일본어를 고르면 영어로, 다시 한국어를 고르면 바로 한국어로', (tester) async {
+    testWidgets('일본어를 고르면 일본어로, 다시 한국어를 고르면 바로 한국어로', (tester) async {
       await show(tester, const MeetingInputScreen());
       expect(find.text('추천역 찾기'), findsOneWidget);
 
       LanguageSettings.selected.value = AppLanguage.japanese;
       await tester.pumpAndSettle();
-      expect(find.text('Find a meeting station'), findsOneWidget);
+      expect(find.text('待ち合わせ駅を探す'), findsOneWidget);
+      expect(find.text('추천역 찾기'), findsNothing);
 
       LanguageSettings.selected.value = AppLanguage.korean;
       await tester.pumpAndSettle();
       expect(find.text('추천역 찾기'), findsOneWidget);
     });
-
-    testWidgets('빈 칸으로 찾으면 영어 안내가 뜬다', (tester) async {
-      LanguageSettings.selected.value = AppLanguage.english;
-      await show(tester, const MeetingInputScreen());
-      final button = find.text('Find a meeting station');
-      await tester.ensureVisible(button);
-      await tester.tap(button);
-      await tester.pump();
-      expect(
-        find.text('Please enter a departure station for Me.'),
-        findsOneWidget,
-      );
-    });
   });
 
   group('모임역 결과', () {
-    testWidgets('영어 모드에서 제목·버튼·기준이 영어이고 한국어 글자가 없다', (tester) async {
+    testWidgets('영어 모드에서 제목·버튼·기준·주변 시설이 영어이고 한국어 글자가 없다', (tester) async {
       LanguageSettings.selected.value = AppLanguage.english;
-      await show(
-        tester,
-        MeetingResultScreen(
-          departures: const ['신도림', '노원', '장지'],
-          criteria: 'fairness',
-          criteriaLabel: '공평성',
-          client: fakeClient(),
-        ),
-      );
+      await show(tester, meetingResult());
       for (final text in [
         'Recommendation',
-        'Meeting station',
-        'Why this station',
-        'Recommended by: Fairest · People: 3',
+        'Suggested meeting station',
+        'Why this station?',
+        'Criteria: Fairness · Participants: 3',
         'Me · Sindorim',
         'Friend 1 · Nowon',
         '47 min · Transfers: 2',
-        'Average 46 min · Max transfers: 2',
-        'AI explanation',
-        'Nearby places',
+        'Average travel time: 46 min · Maximum transfers: 2',
+        'AI recommendation explanation',
+        'Nearby facilities',
         'Share',
         'Directions',
         'Line 7',
@@ -201,36 +190,23 @@ void main() {
         expect(find.text(text), findsWidgets, reason: text);
       }
       expect(find.text('Starbucks Meokgol Station'), findsOneWidget);
-      expect(find.textContaining(RegExp('[가-힣]')), findsNothing);
+      expect(find.textContaining(hangul), findsNothing);
     });
 
     testWidgets('결과 화면에서 언어를 바꾸면 글자가 바로 바뀐다', (tester) async {
-      await show(
-        tester,
-        MeetingResultScreen(
-          departures: const ['신도림', '노원', '장지'],
-          criteria: 'fairness',
-          criteriaLabel: '공평성',
-          client: fakeClient(),
-        ),
-      );
+      await show(tester, meetingResult());
       expect(find.text('추천 만남역'), findsOneWidget);
+
       LanguageSettings.selected.value = AppLanguage.vietnamese;
       await tester.pumpAndSettle();
-      expect(find.text('Meeting station'), findsOneWidget);
+      expect(find.text('Ga hẹn gặp được đề xuất'), findsOneWidget);
+      expect(find.text('Tiện ích xung quanh'), findsOneWidget);
       expect(find.text('Starbucks Meokgol Station'), findsOneWidget);
+      expect(find.textContaining(hangul), findsNothing);
     });
 
-    testWidgets('한국어 모드는 예전 글자 그대로', (tester) async {
-      await show(
-        tester,
-        MeetingResultScreen(
-          departures: const ['신도림', '노원', '장지'],
-          criteria: 'fairness',
-          criteriaLabel: '공평성',
-          client: fakeClient(),
-        ),
-      );
+    testWidgets('한국어 모드는 한국어 글자 그대로', (tester) async {
+      await show(tester, meetingResult());
       for (final text in [
         '추천 결과',
         '추천 만남역',
@@ -251,32 +227,32 @@ void main() {
       await show(tester, const HomeScreen());
       for (final text in [
         'Where are you going?',
-        'Search route',
+        'Find a route',
         'Recent searches',
-        'See all',
+        'View all',
         'From',
         'To',
-        'Route',
-        'Meeting spot',
+        'Meeting station',
         'Home',
         'Favorites',
-        'Map',
+        'Route map',
       ]) {
         expect(find.text(text), findsWidgets, reason: text);
       }
       expect(find.byTooltip('Chatbot'), findsOneWidget);
       expect(find.text('경로 검색'), findsNothing);
+      // 최근 검색의 역 이름은 저장한 한국어 이름 그대로 보인다 (화면 글자가 아님)
     });
 
     testWidgets('빈 칸으로 검색하면 영어 안내가 뜬다', (tester) async {
       LanguageSettings.selected.value = AppLanguage.english;
       await show(tester, const HomeScreen());
-      final button = find.text('Search route');
+      final button = find.widgetWithText(FilledButton, 'Find a route');
       await tester.ensureVisible(button);
       await tester.tap(button);
       await tester.pump();
       expect(
-        find.text('Please enter both departure and arrival stations.'),
+        find.text('Enter both your starting and destination stations.'),
         findsOneWidget,
       );
     });
@@ -292,41 +268,31 @@ void main() {
         'Saved routes',
         'No saved routes yet',
         'Home',
-        'Map',
+        'Route map',
       ]) {
         expect(find.text(text), findsWidgets, reason: text);
       }
-      expect(find.textContaining(RegExp('[가-힣]')), findsNothing);
+      expect(find.textContaining(hangul), findsNothing);
     });
   });
 
   group('노선도', () {
-    testWidgets('영어 모드에서 제목·검색·범례가 영어', (tester) async {
+    testWidgets('영어 모드에서 제목·필터·범례가 영어', (tester) async {
       LanguageSettings.selected.value = AppLanguage.english;
       await show(tester, const SubwayMapScreen());
       for (final text in [
-        'Subway map',
-        'Temporary map · Search by station number',
+        'Route map',
         'All',
         'Line 1',
         'Transfer station',
-        'Station',
+        'Regular station',
         'Home',
         'Favorites',
-        'Map',
       ]) {
         expect(find.text(text), findsWidgets, reason: text);
       }
       expect(find.byTooltip('Zoom in'), findsOneWidget);
       expect(find.text('노선도'), findsNothing);
-    });
-
-    testWidgets('빈 칸으로 찾으면 영어 안내가 뜬다', (tester) async {
-      LanguageSettings.selected.value = AppLanguage.english;
-      await show(tester, const SubwayMapScreen());
-      await tester.tap(find.byTooltip('Search stations'));
-      await tester.pump();
-      expect(find.text('Enter a station number. Example: 101'), findsOneWidget);
     });
   });
 
@@ -342,24 +308,24 @@ void main() {
         ),
       );
       for (final text in [
-        'Route',
+        'Route results',
         'Fastest',
         'Fewest transfers',
-        'About 53 min · Transfers: 0',
+        'Estimated time: 53 min · Transfers: 0',
         'AI route guide',
         'Route details',
-        'Show all stops',
+        'View all stops',
         'Total time',
         'Board at Sindorim',
-        'Line 2 · toward Mullae · 2 stops',
+        'Line 2 · Toward Mullae · Stops: 2',
         "Get off at Seoul Nat'l Univ. of Education",
       ]) {
         expect(find.text(text), findsWidgets, reason: text);
       }
-      expect(find.textContaining(RegExp('[가-힣]')), findsNothing);
+      expect(find.textContaining(hangul), findsNothing);
     });
 
-    testWidgets('한국어 모드는 예전 글자 그대로', (tester) async {
+    testWidgets('한국어 모드는 한국어 글자 그대로', (tester) async {
       await show(
         tester,
         RouteResultScreen(

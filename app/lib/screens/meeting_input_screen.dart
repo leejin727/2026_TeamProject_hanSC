@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 
-import '../l10n/strings.dart';
 import 'favorites_screen.dart';
 import 'meeting_result_screen.dart';
 import 'subway_map_screen.dart';
 import '../widgets/language_selector.dart';
+import '../localization/app_strings.dart';
 
 const _navy = Color(0xFF152952);
 const _textColor = Color(0xFF293F64);
@@ -34,17 +34,37 @@ class _MeetingInputScreenState extends State<MeetingInputScreen> {
 
   _RecommendationCriteria _criteria = _RecommendationCriteria.fastest;
 
-  /// 화면 글자 (앱 언어가 ko면 한국어, 아니면 영어)
-  Tr get _t => Tr.of(context);
+  @override
+  void initState() {
+    super.initState();
+    LanguageSettings.selected.addListener(_onLanguageChanged);
+  }
+
+  void _onLanguageChanged() {
+    if (!mounted) return;
+    setState(() {});
+  }
+
+  String _personLabel(int index) {
+    if (index == 0) {
+      return AppStrings.text('나');
+    }
+
+    return AppStrings.text('친구 {number}').replaceAll('{number}', '$index');
+  }
 
   @override
   void dispose() {
+    LanguageSettings.selected.removeListener(_onLanguageChanged);
+
     for (final controller in _controllers) {
       controller.dispose();
     }
+
     for (final controller in _removedControllers) {
       controller.dispose();
     }
+
     super.dispose();
   }
 
@@ -87,11 +107,12 @@ class _MeetingInputScreenState extends State<MeetingInputScreen> {
 
     for (var index = 0; index < _controllers.length; index++) {
       if (_controllers[index].text.trim().isEmpty) {
-        final t = Tr.current;
+        final person = _personLabel(index);
+
         _showMessage(
-          t('meetingInput.needDeparture', {'person': t.person(index)}),
+          AppStrings.text('{person}의 출발역을 입력해 주세요.')
+              .replaceAll('{person}', person),
         );
-        return;
       }
     }
 
@@ -99,20 +120,23 @@ class _MeetingInputScreenState extends State<MeetingInputScreen> {
         .map((controller) => controller.text.trim())
         .toList();
 
+    final String criteriaLabel;
     final String criteria; // 서버에 보내는 값 (api-spec.md 3장)
 
     switch (_criteria) {
       case _RecommendationCriteria.fastest:
+        criteriaLabel = '최단시간';
         criteria = 'time';
         break;
       case _RecommendationCriteria.fairest:
+        criteriaLabel = '공평성';
         criteria = 'fairness';
         break;
       case _RecommendationCriteria.fewestTransfers:
+        criteriaLabel = '최소환승';
         criteria = 'transfers';
         break;
     }
-    final criteriaLabel = Tr.current.criteria(criteria);
 
     Navigator.of(context).push(
       MaterialPageRoute<void>(
@@ -146,7 +170,7 @@ class _MeetingInputScreenState extends State<MeetingInputScreen> {
                         _buildHeader(),
                         const SizedBox(height: 28),
                         Text(
-                          _t('common.whereTo'),
+                          AppStrings.text('어디로 가시나요?'),
                           style: const TextStyle(
                             color: _textColor,
                             fontSize: 25,
@@ -155,7 +179,7 @@ class _MeetingInputScreenState extends State<MeetingInputScreen> {
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          _t('meetingInput.subtitle'),
+                          AppStrings.text('각자의 출발역을 입력하면 만나기 좋은 역을 찾아드려요'),
                           style: const TextStyle(
                             color: _muted,
                             fontSize: 12,
@@ -172,7 +196,7 @@ class _MeetingInputScreenState extends State<MeetingInputScreen> {
                         _buildAddButton(),
                         const SizedBox(height: 26),
                         Text(
-                          _t('meetingInput.criteria'),
+                          AppStrings.text('추천 기준'),
                           style: const TextStyle(
                             color: _textColor,
                             fontSize: 15,
@@ -193,7 +217,8 @@ class _MeetingInputScreenState extends State<MeetingInputScreen> {
                             ),
                           ),
                           child: Text(
-                            _t('meetingInput.find'),
+                            AppStrings.text('추천역 찾기'),
+                            textAlign: TextAlign.center,
                             style: const TextStyle(
                               fontSize: 15,
                               fontWeight: FontWeight.w700,
@@ -307,12 +332,8 @@ class _MeetingInputScreenState extends State<MeetingInputScreen> {
       ),
       child: Row(
         children: [
-          _buildTab(
-            label: _t('tab.route'),
-            selected: false,
-            onPressed: _goHome,
-          ),
-          _buildTab(label: _t('tab.meeting'), selected: true, onPressed: () {}),
+          _buildTab(label: '경로 검색', selected: false, onPressed: _goHome),
+          _buildTab(label: '모임역 추천', selected: true, onPressed: () {}),
         ],
       ),
     );
@@ -337,7 +358,8 @@ class _MeetingInputScreenState extends State<MeetingInputScreen> {
             ),
           ),
           child: Text(
-            label,
+            AppStrings.text(label),
+            textAlign: TextAlign.center,
             style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
           ),
         ),
@@ -361,7 +383,7 @@ class _MeetingInputScreenState extends State<MeetingInputScreen> {
   }
 
   Widget _buildParticipantField(int index) {
-    final label = _t.person(index);
+    final label = _personLabel(index);
     final canRemove = index > 0 && _controllers.length > 2;
 
     return Container(
@@ -373,8 +395,7 @@ class _MeetingInputScreenState extends State<MeetingInputScreen> {
       child: Row(
         children: [
           SizedBox(
-            // 영어 이름표("Friend 1")는 한국어("친구 1")보다 길어서 칸을 넓힌다
-            width: _t.isKorean ? 44 : 64,
+            width: 64,
             child: Text(
               label,
               textAlign: TextAlign.center,
@@ -404,7 +425,7 @@ class _MeetingInputScreenState extends State<MeetingInputScreen> {
                 fontWeight: FontWeight.w600,
               ),
               decoration: InputDecoration(
-                hintText: _t('common.departureHint'),
+                hintText: AppStrings.text('출발역 입력'),
                 hintStyle: const TextStyle(
                   color: _muted,
                   fontSize: 13,
@@ -415,16 +436,16 @@ class _MeetingInputScreenState extends State<MeetingInputScreen> {
                 focusedBorder: InputBorder.none,
                 contentPadding: const EdgeInsets.symmetric(vertical: 18),
                 // 화면 읽기 도구에서도 사람을 구분할 수 있습니다.
-                semanticCounterText: _t('meetingInput.departureOf', {
-                  'person': label,
-                }),
+                semanticCounterText: AppStrings.text('{person}의 출발역')
+                    .replaceAll('{person}', label),
               ),
             ),
           ),
           if (canRemove)
             IconButton(
               onPressed: () => _removeFriend(index),
-              tooltip: _t('meetingInput.remove', {'person': label}),
+              tooltip: AppStrings.text('{person} 삭제')
+                  .replaceAll('{person}', label),
               icon: const Icon(Icons.close, color: _muted, size: 18),
             )
           else
@@ -453,7 +474,10 @@ class _MeetingInputScreenState extends State<MeetingInputScreen> {
           const SizedBox(width: 6),
           Flexible(
             child: Text(
-              canAdd ? _t('meetingInput.addFriend') : _t('meetingInput.max'),
+              AppStrings.text(
+                canAdd ? '친구 추가 (나 포함 최대 4명)' : '최대 4명까지 입력할 수 있어요',
+              ),
+              textAlign: TextAlign.center,
               style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
             ),
           ),
@@ -472,15 +496,15 @@ class _MeetingInputScreenState extends State<MeetingInputScreen> {
       child: Row(
         children: [
           _buildCriteriaButton(
-            label: _t.criteria('time'),
+            label: '최단시간',
             value: _RecommendationCriteria.fastest,
           ),
           _buildCriteriaButton(
-            label: _t.criteria('fairness'),
+            label: '공평성',
             value: _RecommendationCriteria.fairest,
           ),
           _buildCriteriaButton(
-            label: _t.criteria('transfers'),
+            label: '최소환승',
             value: _RecommendationCriteria.fewestTransfers,
           ),
         ],
@@ -507,7 +531,7 @@ class _MeetingInputScreenState extends State<MeetingInputScreen> {
             foregroundColor: selected ? _navy : _muted,
             backgroundColor: selected ? Colors.white : Colors.transparent,
             minimumSize: const Size(0, 44),
-            padding: const EdgeInsets.symmetric(horizontal: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 10),
             side: BorderSide(
               color: selected ? _navy : Colors.transparent,
               width: 1.5,
@@ -517,7 +541,8 @@ class _MeetingInputScreenState extends State<MeetingInputScreen> {
             ),
           ),
           child: Text(
-            label,
+            AppStrings.text(label),
+            textAlign: TextAlign.center,
             style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
           ),
         ),
@@ -535,13 +560,13 @@ class _MeetingInputScreenState extends State<MeetingInputScreen> {
       child: Row(
         children: [
           _buildNavigationItem(
-            label: _t('nav.home'),
+            label: '홈',
             icon: Icons.home_outlined,
             selected: true,
             onPressed: _goHome,
           ),
           _buildNavigationItem(
-            label: _t('nav.favorites'),
+            label: '즐겨찾기',
             icon: Icons.star_border_rounded,
             selected: false,
             onPressed: () {
@@ -553,7 +578,7 @@ class _MeetingInputScreenState extends State<MeetingInputScreen> {
             },
           ),
           _buildNavigationItem(
-            label: _t('nav.map'),
+            label: '노선도',
             icon: Icons.map_outlined,
             selected: false,
             onPressed: () {
@@ -599,7 +624,11 @@ class _MeetingInputScreenState extends State<MeetingInputScreen> {
                 child: Icon(icon, size: 23),
               ),
               const SizedBox(height: 3),
-              Text(label, style: const TextStyle(fontSize: 10)),
+              Text(
+                AppStrings.text(label),
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 10, height: 1.3),
+              ),
             ],
           ),
         ),
