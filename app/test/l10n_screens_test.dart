@@ -10,6 +10,7 @@ import 'package:subway_app/api/api_client.dart';
 import 'package:subway_app/l10n/strings.dart';
 import 'package:subway_app/screens/meeting_input_screen.dart';
 import 'package:subway_app/screens/meeting_result_screen.dart';
+import 'package:subway_app/screens/route_result_screen.dart';
 import 'package:subway_app/widgets/language_selector.dart';
 
 Future<void> show(WidgetTester tester, Widget screen) async {
@@ -29,13 +30,21 @@ ApiClient fakeClient() => ApiClient(
         request.url.queryParameters['lang'] ??
         (jsonDecode(request.body) as Map<String, dynamic>)['lang'] as String;
     final names = lang == 'ko'
-        ? {'101': '신도림', '416': '노원', '805': '장지', '701': '먹골', '207': '교대'}
+        ? {
+            '101': '신도림',
+            '416': '노원',
+            '805': '장지',
+            '701': '먹골',
+            '207': '교대',
+            '201': '문래',
+          }
         : {
             '101': 'Sindorim',
             '416': 'Nowon',
             '805': 'Jangji',
             '701': 'Meokgol',
             '207': "Seoul Nat'l Univ. of Education",
+            '201': 'Mullae',
           };
     Map<String, Object?> ref(String id) => {'id': id, 'name': names[id]};
     switch (path) {
@@ -61,6 +70,27 @@ ApiClient fakeClient() => ApiClient(
           ],
           'total_travel_sec': 8220,
           'max_travel_sec': 2820,
+        });
+      case '/routes':
+        return jsonResponse({
+          'criteria':
+              (jsonDecode(request.body) as Map<String, dynamic>)['criteria'],
+          'start': ref('101'),
+          'end': ref('207'),
+          'total_sec': 3180,
+          'transfer_count': 0,
+          'cost_won': 2560,
+          'segments': [
+            {
+              'line': 2,
+              'board': ref('101'),
+              'alight': ref('207'),
+              'direction': ref('201'),
+              'stations': [ref('101'), ref('201'), ref('207')],
+              'ride_sec': 3180,
+            },
+          ],
+          'transfers': [],
         });
       case '/explain':
         return jsonResponse({
@@ -169,6 +199,23 @@ void main() {
       expect(find.textContaining(RegExp('[가-힣]')), findsNothing);
     });
 
+    testWidgets('결과 화면에서 언어를 바꾸면 글자가 바로 바뀐다', (tester) async {
+      await show(
+        tester,
+        MeetingResultScreen(
+          departures: const ['신도림', '노원', '장지'],
+          criteria: 'fairness',
+          criteriaLabel: '공평성',
+          client: fakeClient(),
+        ),
+      );
+      expect(find.text('추천 만남역'), findsOneWidget);
+      LanguageSettings.selected.value = AppLanguage.vietnamese;
+      await tester.pumpAndSettle();
+      expect(find.text('Meeting station'), findsOneWidget);
+      expect(find.text('Starbucks Meokgol Station'), findsOneWidget);
+    });
+
     testWidgets('한국어 모드는 예전 글자 그대로', (tester) async {
       await show(
         tester,
@@ -187,6 +234,59 @@ void main() {
         '47분 · 환승 2회',
         '주변 인프라',
         '길찾기',
+      ]) {
+        expect(find.text(text), findsWidgets, reason: text);
+      }
+    });
+  });
+
+  group('경로 결과', () {
+    testWidgets('영어 모드에서 제목·탭·상세 경로가 영어', (tester) async {
+      LanguageSettings.selected.value = AppLanguage.english;
+      await show(
+        tester,
+        RouteResultScreen(
+          departure: 'Sindorim',
+          arrival: "Seoul Nat'l Univ. of Education",
+          client: fakeClient(),
+        ),
+      );
+      for (final text in [
+        'Route',
+        'Fastest',
+        'Fewest transfers',
+        'About 53 min · 0 transfers',
+        'AI route guide',
+        'Route details',
+        'Show all stops',
+        'Total time',
+        'Board at Sindorim',
+        'Line 2 · toward Mullae · 2 stops',
+        "Get off at Seoul Nat'l Univ. of Education",
+      ]) {
+        expect(find.text(text), findsWidgets, reason: text);
+      }
+      expect(find.textContaining(RegExp('[가-힣]')), findsNothing);
+    });
+
+    testWidgets('한국어 모드는 예전 글자 그대로', (tester) async {
+      await show(
+        tester,
+        RouteResultScreen(
+          departure: '신도림',
+          arrival: '교대',
+          client: fakeClient(),
+        ),
+      );
+      for (final text in [
+        '경로 결과',
+        '최단시간',
+        '예상 소요 53분 · 환승 0회',
+        'AI 경로 설명',
+        '상세 경로',
+        '신도림 승차',
+        '2호선 · 문래 방면 · 2개 역 이동',
+        '교대 하차',
       ]) {
         expect(find.text(text), findsWidgets, reason: text);
       }
