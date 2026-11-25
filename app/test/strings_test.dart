@@ -49,7 +49,7 @@ void main() {
     );
     expect(
       Tr.english('route.summary', {'min': 42, 'n': 1}),
-      'About 42 min · 1 transfers',
+      'About 42 min · Transfers: 1',
     );
     expect(Tr.korean.person(0), '나');
     expect(Tr.english.person(2), 'Friend 2');

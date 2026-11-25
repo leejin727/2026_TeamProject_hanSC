@@ -373,7 +373,8 @@ class _MeetingInputScreenState extends State<MeetingInputScreen> {
       child: Row(
         children: [
           SizedBox(
-            width: 44,
+            // 영어 이름표("Friend 1")는 한국어("친구 1")보다 길어서 칸을 넓힌다
+            width: _t.isKorean ? 44 : 64,
             child: Text(
               label,
               textAlign: TextAlign.center,

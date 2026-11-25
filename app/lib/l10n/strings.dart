@@ -234,10 +234,11 @@ const englishStrings = <String, String>{
   'meetingResult.myStation': 'Your departure station is the meeting station.',
   'meetingResult.title': 'Recommendation',
   'meetingResult.station': 'Meeting station',
-  'meetingResult.summary': 'Average {avg} min · Up to {max} transfers',
+  // 영어 개수는 "Transfers: 1"처럼 쓴다 (챗봇과 같은 방식, "1 transfers"가 되지 않게)
+  'meetingResult.summary': 'Average {avg} min · Max transfers: {max}',
   'meetingResult.reason': 'Why this station',
   'meetingResult.criteriaUsed': 'Recommended by: {criteria} · People: {n}',
-  'meetingResult.travel': '{min} min · {n} transfers',
+  'meetingResult.travel': '{min} min · Transfers: {n}',
   'meetingResult.aiReason': 'AI explanation',
   'meetingResult.reasonLoading': 'Writing the explanation…',
   'meetingResult.facilities': 'Nearby places',
@@ -258,7 +259,7 @@ const englishStrings = <String, String>{
   'route.favoriteRemoved': 'Removed from favorites.',
   'route.favoriteAdded':
       'Added to favorites. Favorites reset when the app restarts.',
-  'route.summary': 'About {min} min · {n} transfers',
+  'route.summary': 'About {min} min · Transfers: {n}',
   'route.rideTime': 'Line {line} {min} min',
   'route.transferTime': 'Transfer {min} min',
   'route.total': 'Total time',
