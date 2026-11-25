@@ -166,6 +166,17 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('추천역 찾기'), findsOneWidget);
     });
+
+    testWidgets('빈 칸으로 찾으면 첫 빈 칸의 영어 안내가 뜨고 결과 화면으로 넘어가지 않는다', (tester) async {
+      LanguageSettings.selected.value = AppLanguage.english;
+      await show(tester, const MeetingInputScreen());
+      final button = find.text('Find a meeting station');
+      await tester.ensureVisible(button);
+      await tester.tap(button);
+      await tester.pumpAndSettle();
+      expect(find.text('Enter the starting station for Me.'), findsOneWidget);
+      expect(find.byType(MeetingResultScreen), findsNothing);
+    });
   });
 
   group('모임역 결과', () {
@@ -277,11 +288,13 @@ void main() {
   });
 
   group('노선도', () {
-    testWidgets('영어 모드에서 제목·필터·범례가 영어', (tester) async {
+    // 테스트에는 서버가 없어서 역 이름 불러오기는 실패한다. 그 안내도 영어여야 한다.
+    testWidgets('영어 모드에서 제목·안내·범례가 영어이고 한국어 글자가 없다', (tester) async {
       LanguageSettings.selected.value = AppLanguage.english;
       await show(tester, const SubwayMapScreen());
       for (final text in [
         'Route map',
+        'Fictional route map · Search by Korean or English name, or number',
         'All',
         'Line 1',
         'Transfer station',
@@ -292,7 +305,15 @@ void main() {
         expect(find.text(text), findsWidgets, reason: text);
       }
       expect(find.byTooltip('Zoom in'), findsOneWidget);
-      expect(find.text('노선도'), findsNothing);
+      expect(find.textContaining(hangul), findsNothing);
+    });
+
+    testWidgets('빈 칸으로 찾으면 영어 안내가 뜬다', (tester) async {
+      LanguageSettings.selected.value = AppLanguage.english;
+      await show(tester, const SubwayMapScreen());
+      await tester.tap(find.byTooltip('Search stations'));
+      await tester.pump();
+      expect(find.text('Enter a station name or number.'), findsOneWidget);
     });
   });
 
